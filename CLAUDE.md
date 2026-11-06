@@ -97,14 +97,18 @@ NyarchAssistant no corre nativo en Windows: depende de WebKitGTK 6.0 (se carga a
    ```powershell
    "[wsl2]`nnetworkingMode=mirrored" | Out-File -Encoding ascii "$env:USERPROFILE\.wslconfig"
    ```
-   En NyarchAssistant: proveedor Ollama, endpoint `http://localhost:11434`, modelo `qwen2.5:3b` (o `qwen2.5:1.5b`), igual que en Linux.
+   En NyarchAssistant (Configuración → Language Model), igual que en Linux:
+   - **Ojo:** por defecto viene seleccionado **"Nyarch Demo API"**, una API en la nube (`llm.nyarchlinux.moe`) limitada a ~10 peticiones por día. Si no se cambia, los mensajes salen a internet (rompe la regla de 100 % local) y al rato aparece `Error code: 429 rate_limit_exceeded`.
+   - Elegir **"Ollama Instance"** (no "Ollama Cloud" ni "Local Model"). Si sale en gris, primero clic en la flecha azul ↓ para instalar la librería `ollama`.
+   - En sus opciones (⌄): endpoint `http://localhost:11434`; **Ollama Model**: botón ↻ y elegir `qwen2.5:3b` (o `qwen2.5:1.5b`), porque por defecto trae `qwen3.5:9b`, que no está descargado; **Enable Thinking** desactivado (Qwen 2.5 no lo soporta); **Native Tool Calling** activado; **Automatically Serve** apagado.
+   - Comprobar: el encabezado del chat dice "Ollama Instance - qwen2.5:3b" y, mientras responde, `ollama ps` (en PowerShell) muestra `qwen2.5:3b`.
 5. Desactivar el avatar animado (Live2D) desde la configuración: en modo software genera errores y consume CPU, y además lo piden las reglas éticas.
 6. La carpeta `Trabajos` de Windows se ve como `/mnt/c/Users/<usuario>/Documents/Trabajos`. El permiso Flatpak y el `guardian` apuntan a esa ruta (ver lista negra abajo).
 7. Leer archivos en `/mnt/c` es más lento que en Linux, pero para el dataset (60–90 archivos) no afecta.
 
 Consejos: en la ventana de Ubuntu, pegar es con **clic derecho** (Ctrl+V escribe `^V`); en Terminal de Windows es Ctrl+Shift+V. Trabajar desde `~` (carpeta de Linux), no desde `/mnt/c/WINDOWS/system32`.
 
-Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` llama correctamente a la herramienta de la extensión "hola mundo". Falta probar: permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
+Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` local llama correctamente a la herramienta `saludar` de la extensión "hola mundo" (confirmado con `ollama ps`). Nota: la primera prueba de la extensión corrió por error en "Nyarch Demo API" (nube), porque no se había cambiado el proveedor; la prueba válida con Qwen local es la segunda. Qwen corre en CPU (lento, pero funciona) y su texto final a veces sale confuso (mezcla "eres"/"soy", agrega una "Task List" innecesaria), lo que confirma que la clasificación debe hacerla la extensión y no el modelo. Falta probar: permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
 
 ## Cómo son las extensiones (verificado el 6 nov con `archy/hola_archy.py`)
 
@@ -127,7 +131,7 @@ Vienen del documento de ética del equipo. Cualquier propuesta debe respetarlas:
 - **Control humano:** modo simulación por defecto, el plan se muestra antes de actuar, aprobación por archivo, edición del plan y comando deshacer.
 - **Transparencia:** cada decisión muestra confianza y motivo; el agente se presenta como "agente automatizado, no una persona" (el avatar animado de NyarchAssistant se desactiva).
 - **Privacidad:** 100 % local. Sin nube, sin búsqueda web, sin telemetría, sin memoria a largo plazo. El log guarda rutas y metadatos, nunca el contenido.
-- **NyarchAssistant con perfil "Organizador TIID":** ejecución de comandos de terminal desactivada, solo proveedor Ollama, Smart Prompts desactivado. Sin personaje: en Configuración → Prompts desactivar **"Show a personality"** (tono de personaje "Arch-chan") y **"Show expressions"** (etiquetas como "(Happy)", "(Wink)" para animar el avatar), y cambiar el nombre del asistente de "Arch-chan" a "Archy".
+- **NyarchAssistant con perfil "Organizador TIID":** ejecución de comandos de terminal desactivada, solo proveedor **"Ollama Instance"** (nunca "Nyarch Demo API", que viene por defecto y es nube), Smart Prompts desactivado. Sin personaje: en Configuración → Prompts desactivar **"Show a personality"** (tono de personaje "Arch-chan") y **"Show expressions"** (etiquetas como "(Happy)", "(Wink)" para animar el avatar), y cambiar el nombre del asistente de "Arch-chan" a "Archy".
 - **Imparcialidad:** criterios solo por materia y tipo; nunca modifica el contenido de los archivos.
 
 ## Normas ISO de referencia (alineación, no certificación)
@@ -159,6 +163,7 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 - Confirmar licencia de NyarchAssistant (`COPYING`).
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
 - Terminar prueba en WSL2: falta que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione (ventana, Ollama y extensión ya funcionan).
+- Contexto de Ollama: corre con 4096 tokens (valor por defecto, visto en `ollama ps`). El prompt de NyarchAssistant más las herramientas de Archy pueden llenarlo; si Qwen empieza a ignorar herramientas o instrucciones, subirlo (variable `OLLAMA_CONTEXT_LENGTH` en Windows) y medir el impacto en velocidad.
 - Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
 - Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
 - Unificar `_Por revisar` vs "Por revisar".
