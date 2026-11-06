@@ -110,6 +110,33 @@ Consejos: en la ventana de Ubuntu, pegar es con **clic derecho** (Ctrl+V escribe
 
 Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` local llama correctamente a la herramienta `saludar` de la extensión "hola mundo" (confirmado con `ollama ps`). Nota: la primera prueba de la extensión corrió por error en "Nyarch Demo API" (nube), porque no se había cambiado el proveedor; la prueba válida con Qwen local es la segunda. Qwen corre en CPU (lento, pero funciona) y su texto final a veces sale confuso (mezcla "eres"/"soy", agrega una "Task List" innecesaria), lo que confirma que la clasificación debe hacerla la extensión y no el modelo. Falta probar: permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
 
+## Servidor Ollama remoto (opcional, solo para desarrollo)
+
+Si una laptop es lenta (CPU), puede usar el Ollama de otra PC del equipo que tenga GPU, aunque estén en redes distintas (ej. laptop en la universidad y PC en casa), usando **Tailscale** (VPN personal gratuita, cifrada).
+
+Medido el 6 nov con `qwen2.5:3b`: PC con GPU vía Tailscale ≈ **110 tokens/s** (respuesta de ~100 palabras en ~1.3 s) contra ≈ 9 tokens/s en la CPU de la laptop (~12–16 s). Unas 12 veces más rápido.
+
+**En la PC con GPU (Windows):**
+1. Instalar Tailscale e iniciar sesión; Ollama con `qwen2.5:3b` descargado.
+2. `setx OLLAMA_HOST 0.0.0.0:11434` y reiniciar Ollama (Quit en el icono junto al reloj y abrirlo de nuevo). Comprobar con `Get-NetTCPConnection -LocalPort 11434 -State Listen`: debe decir `0.0.0.0` o `::`, no `127.0.0.1`.
+3. Firewall (PowerShell como administrador), solo para direcciones de Tailscale:
+   ```powershell
+   New-NetFirewallRule -DisplayName "Ollama Tailscale" -Direction Inbound -Protocol TCP -LocalPort 11434 -RemoteAddress 100.64.0.0/10 -Action Allow
+   ```
+4. Opcional: `setx OLLAMA_KEEP_ALIVE 30m` para que el modelo no se descargue de la GPU a los 5 minutos (la primera respuesta tras descargarse tarda ~1 minuto).
+5. Debe quedarse encendida, sin suspenderse y con Ollama abierto.
+
+**En la laptop:**
+1. Tailscale con la **misma cuenta**. `"C:\Program Files\Tailscale\tailscale.exe" status` muestra la IP `100.x` de la PC con GPU.
+2. Probar desde Ubuntu: `curl http://<IP-100.x>:11434/api/tags` (debe listar los modelos).
+3. NyarchAssistant → Ollama Instance → API Endpoint `http://<IP-100.x>:11434`. Para volver a local: `http://localhost:11434`.
+
+**Reglas:**
+- **Nunca** abrir el puerto 11434 en el router (port forwarding): Ollama no tiene contraseña y quedaría expuesto a internet.
+- En redes que bloquean conexión directa (como la de la universidad), Tailscale pasa por un relevo (DERP); funciona igual, con algo más de latencia.
+- Solo para **desarrollo con el dataset de prueba**. El contenido de los archivos viaja (cifrado) a otra PC, así que la **demo y el producto final** usan el Ollama de la propia PC del estudiante (`localhost`), como exige la regla de privacidad.
+- Tailscale es gratis; su cliente es open source pero su servidor de coordinación no. Alternativa 100 % open source: Headscale (más complicada). Para desarrollo basta Tailscale.
+
 ## Cómo son las extensiones (verificado el 6 nov con `archy/hola_archy.py`)
 
 - Un solo `.py` con una clase que hereda de `NewelleExtension`, con `id` y `name` (≤ 50 caracteres). Imports relativos (`from .extensions import NewelleExtension`, `from .tools import create_io_tool`), porque la app carga el archivo dentro de su propio paquete.
@@ -130,7 +157,7 @@ Vienen del documento de ética del equipo. Cualquier propuesta debe respetarlas:
 - **Lista negra siempre bloqueada:** `/`, `/etc`, `/usr`, `/bin`, `/boot`, `/root`, `/var`, `/proc`, `/sys`, `~/.ssh`, `~/.config`, `~/.var`, carpetas ocultas. En WSL además: `/mnt` y la raíz de cada unidad (`/mnt/c`, `/mnt/d`…) como ruta exacta (igual que `/`, porque `Trabajos` vive debajo), y con todo su contenido `/mnt/c/Windows`, `/mnt/c/Program Files`, `/mnt/c/Program Files (x86)`, `/mnt/c/ProgramData`, `/mnt/c/Users/<usuario>/AppData`. No sigue enlaces simbólicos ni accesos directos (`.lnk`).
 - **Control humano:** modo simulación por defecto, el plan se muestra antes de actuar, aprobación por archivo, edición del plan y comando deshacer.
 - **Transparencia:** cada decisión muestra confianza y motivo; el agente se presenta como "agente automatizado, no una persona" (el avatar animado de NyarchAssistant se desactiva).
-- **Privacidad:** 100 % local. Sin nube, sin búsqueda web, sin telemetría, sin memoria a largo plazo. El log guarda rutas y metadatos, nunca el contenido.
+- **Privacidad:** 100 % local. Sin nube, sin búsqueda web, sin telemetría, sin memoria a largo plazo. El log guarda rutas y metadatos, nunca el contenido. Excepción solo durante el desarrollo: usar el Ollama de otra PC del equipo por Tailscale con el dataset de prueba (ver "Servidor Ollama remoto"); nunca en la demo ni con archivos reales de estudiantes.
 - **NyarchAssistant con perfil "Organizador TIID":** ejecución de comandos de terminal desactivada, solo proveedor **"Ollama Instance"** (nunca "Nyarch Demo API", que viene por defecto y es nube), Smart Prompts desactivado. Sin personaje: en Configuración → Prompts desactivar **"Show a personality"** (tono de personaje "Arch-chan") y **"Show expressions"** (etiquetas como "(Happy)", "(Wink)" para animar el avatar), y cambiar el nombre del asistente de "Arch-chan" a "Archy".
 - **Imparcialidad:** criterios solo por materia y tipo; nunca modifica el contenido de los archivos.
 
