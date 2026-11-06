@@ -123,8 +123,9 @@ Medido el 6 nov con `qwen2.5:3b`: PC con GPU vía Tailscale ≈ **110 tokens/s**
    ```powershell
    New-NetFirewallRule -DisplayName "Ollama Tailscale" -Direction Inbound -Protocol TCP -LocalPort 11434 -RemoteAddress 100.64.0.0/10 -Action Allow
    ```
-4. Opcional: `setx OLLAMA_KEEP_ALIVE 30m` para que el modelo no se descargue de la GPU a los 5 minutos (la primera respuesta tras descargarse tarda ~1 minuto).
-5. Debe quedarse encendida, sin suspenderse y con Ollama abierto.
+4. **Obligatorio:** `setx OLLAMA_CONTEXT_LENGTH 16384` y reiniciar Ollama. Con los 4096 por defecto, el prompt de NyarchAssistant no cabe y el modelo responde vacío (ver pendiente "Contexto de Ollama").
+5. Opcional: `setx OLLAMA_KEEP_ALIVE 30m` para que el modelo no se descargue de la GPU a los 5 minutos (la primera respuesta tras descargarse tarda ~1 minuto).
+6. Debe quedarse encendida, sin suspenderse y con Ollama abierto.
 
 **En la laptop:**
 1. Tailscale con la **misma cuenta**. `"C:\Program Files\Tailscale\tailscale.exe" status` muestra la IP `100.x` de la PC con GPU.
@@ -190,7 +191,10 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 - Confirmar licencia de NyarchAssistant (`COPYING`).
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
 - Terminar prueba en WSL2: falta que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione (ventana, Ollama y extensión ya funcionan).
-- Contexto de Ollama: corre con 4096 tokens (valor por defecto, visto en `ollama ps`). El prompt de NyarchAssistant más las herramientas de Archy pueden llenarlo; si Qwen empieza a ignorar herramientas o instrucciones, subirlo (variable `OLLAMA_CONTEXT_LENGTH` en Windows) y medir el impacto en velocidad.
+- **Contexto de Ollama (problema confirmado el 6 nov):** Ollama usa 4096 tokens por defecto y NyarchAssistant no le indica otro valor (no manda `num_ctx`). Cada mensaje de NyarchAssistant pesa ~5,700–8,600 tokens (instrucciones + definición de todas sus herramientas + historial, según `data/usage.sqlite3` de la app), así que Ollama recorta el prompt y Qwen devuelve **respuestas vacías** (`out=0` en ese registro). Pasa sobre todo al usar una herramienta (`saludar`), porque la llamada y su resultado agregan más texto; los mensajes cortos sí responden.
+  - Arreglo: en la PC que corre Ollama, `setx OLLAMA_CONTEXT_LENGTH 16384` y reiniciar Ollama. Comprobar con `ollama ps` (columna CONTEXT) o `/api/ps` (`context_length`). En GPU cuesta ~0.6 GB más de VRAM; en CPU hace más lentas las respuestas.
+  - Pendiente: verificar que con 16384 `saludar` responde, y medir cuánto pesa el prompt.
+  - Solución de fondo: en el perfil "Organizador TIID", desactivar las herramientas y prompts de NyarchAssistant que Archy no usa (búsqueda web, memoria, terminal, etc.) para achicar el prompt y que también funcione en laptops con CPU.
 - Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
 - Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
 - Unificar `_Por revisar` vs "Por revisar".
