@@ -104,7 +104,17 @@ NyarchAssistant no corre nativo en Windows: depende de WebKitGTK 6.0 (se carga a
 
 Consejos: en la ventana de Ubuntu, pegar es con **clic derecho** (Ctrl+V escribe `^V`); en Terminal de Windows es Ctrl+Shift+V. Trabajar desde `~` (carpeta de Linux), no desde `/mnt/c/WINDOWS/system32`.
 
-Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 instalados; la app **abre y se mantiene abierta** con el modo software. Falta probar: conexión con Ollama vía red espejo, permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
+Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` llama correctamente a la herramienta de la extensión "hola mundo". Falta probar: permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
+
+## Cómo son las extensiones (verificado el 6 nov con `archy/hola_archy.py`)
+
+- Un solo `.py` con una clase que hereda de `NewelleExtension`, con `id` y `name` (≤ 50 caracteres). Imports relativos (`from .extensions import NewelleExtension`, `from .tools import create_io_tool`), porque la app carga el archivo dentro de su propio paquete.
+- Herramientas en `get_tools()`. `create_io_tool(nombre, descripcion, funcion, title=..., tools_group=...)` genera el esquema a partir de los tipos de los parámetros (`str`, `int`, `bool`, `float`, `list`, `dict`).
+- **`create_io_tool` no atrapa errores** (`src/tools.py`): si la función lanza una excepción, el chat se queda esperando. Toda herramienta de Archy debe usar `try/except` y devolver siempre un texto.
+- Prompts del sistema en `get_additional_prompts()` como **diccionarios** (`key`, `setting_name`, `title`, `description`, `editable`, `show_in_settings`, `default`, `text`). El `PromptDescription` del wiki de Newelle **no existe** en NyarchAssistant.
+- Dependencias pip: `get_extra_requirements()` + `install()`; importar las librerías opcionales dentro de las funciones, no arriba del archivo.
+- Instalación: copiar el `.py` a `~/.var/app/moe.nyarchlinux.assistant/config/extensions/` y reiniciar la app (en WSL es más confiable que el selector de archivos).
+- El código de Archy vive en la carpeta `archy/` de este repo (fork del equipo de NyarchAssistant), separado de `src/`.
 
 ## Reglas éticas y de seguridad (obligatorias, no negociables)
 
@@ -117,7 +127,7 @@ Vienen del documento de ética del equipo. Cualquier propuesta debe respetarlas:
 - **Control humano:** modo simulación por defecto, el plan se muestra antes de actuar, aprobación por archivo, edición del plan y comando deshacer.
 - **Transparencia:** cada decisión muestra confianza y motivo; el agente se presenta como "agente automatizado, no una persona" (el avatar animado de NyarchAssistant se desactiva).
 - **Privacidad:** 100 % local. Sin nube, sin búsqueda web, sin telemetría, sin memoria a largo plazo. El log guarda rutas y metadatos, nunca el contenido.
-- **NyarchAssistant con perfil "Organizador TIID":** ejecución de comandos de terminal desactivada, solo proveedor Ollama, Smart Prompts desactivado.
+- **NyarchAssistant con perfil "Organizador TIID":** ejecución de comandos de terminal desactivada, solo proveedor Ollama, Smart Prompts desactivado. Sin personaje: en Configuración → Prompts desactivar **"Show a personality"** (tono de personaje "Arch-chan") y **"Show expressions"** (etiquetas como "(Happy)", "(Wink)" para animar el avatar), y cambiar el nombre del asistente de "Arch-chan" a "Archy".
 - **Imparcialidad:** criterios solo por materia y tipo; nunca modifica el contenido de los archivos.
 
 ## Normas ISO de referencia (alineación, no certificación)
@@ -148,11 +158,12 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 - Asignar los 5 roles: Integración NyarchAssistant · Seguridad y ética · Percepción y datos · IA · Ejecución y documentación.
 - Confirmar licencia de NyarchAssistant (`COPYING`).
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
-- Terminar prueba en WSL2 (la ventana ya abre con modo software): que se conecte a Ollama con la red espejo y que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione.
+- Terminar prueba en WSL2: falta que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione (ventana, Ollama y extensión ya funcionan).
+- Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
 - Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
 - Unificar `_Por revisar` vs "Por revisar".
 - Logo y paleta de colores de Archy (en proceso).
-- Verificar en el wiki de Newelle el formato real de extensiones y herramientas: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
+- ~~Verificar en el wiki de Newelle el formato real de extensiones y herramientas~~ ✅ Hecho el 6 nov (ver "Cómo son las extensiones"). Referencia: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
 
 ## Cómo ayudar en esta fase
 
