@@ -88,11 +88,23 @@ NyarchAssistant no corre nativo en Windows: depende de WebKitGTK 6.0 (se carga a
 
 1. Requisitos: Windows 11, o Windows 10 21H2+ con WSL de la Microsoft Store; virtualización activada en BIOS.
 2. `wsl --install` (instala Ubuntu) → instalar Flatpak → instalar el `.flatpak` de NyarchAssistant. La app abre como una ventana normal de Windows.
-3. Ollama puede quedarse instalado en Windows (el endpoint de Ollama se configura en NyarchAssistant, por defecto `http://localhost:11434`) o instalarse dentro de WSL. Solo `qwen2.5:3b` / `qwen2.5:1.5b`, igual que en Linux.
-4. La carpeta `Trabajos` de Windows se ve como `/mnt/c/Users/<usuario>/Documents/Trabajos`. El permiso Flatpak y el `guardian` apuntan a esa ruta (ver lista negra abajo).
-5. Leer archivos en `/mnt/c` es más lento que en Linux, pero para el dataset (60–90 archivos) no afecta.
+3. **Modo gráfico por software (obligatorio en WSL).** Dentro de WSL la app no tiene permiso de usar la GPU (`/dev/dri/renderD128: Permission denied`) y aborta al arrancar (código 134: aparece el logo y se cierra). Se arregla una sola vez, dentro de Ubuntu:
+   ```bash
+   flatpak override --user --env=GSK_RENDERER=cairo --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 --env=WEBKIT_DISABLE_COMPOSITING_MODE=1 --env=LIBGL_ALWAYS_SOFTWARE=1 moe.nyarchlinux.assistant
+   ```
+   Después se abre normal con `flatpak run moe.nyarchlinux.assistant`. Para un chat el modo software es suficiente.
+4. Ollama puede quedarse instalado en Windows o instalarse dentro de WSL. Si está en Windows, Ubuntu no lo ve en `localhost` hasta activar la red "espejo" de WSL (en PowerShell, luego `wsl --shutdown`):
+   ```powershell
+   "[wsl2]`nnetworkingMode=mirrored" | Out-File -Encoding ascii "$env:USERPROFILE\.wslconfig"
+   ```
+   En NyarchAssistant: proveedor Ollama, endpoint `http://localhost:11434`, modelo `qwen2.5:3b` (o `qwen2.5:1.5b`), igual que en Linux.
+5. Desactivar el avatar animado (Live2D) desde la configuración: en modo software genera errores y consume CPU, y además lo piden las reglas éticas.
+6. La carpeta `Trabajos` de Windows se ve como `/mnt/c/Users/<usuario>/Documents/Trabajos`. El permiso Flatpak y el `guardian` apuntan a esa ruta (ver lista negra abajo).
+7. Leer archivos en `/mnt/c` es más lento que en Linux, pero para el dataset (60–90 archivos) no afecta.
 
-Estado: **sin probar todavía.** Falta confirmar que Flatpak, el selector de archivos y los permisos funcionan bien dentro de WSL.
+Consejos: en la ventana de Ubuntu, pegar es con **clic derecho** (Ctrl+V escribe `^V`); en Terminal de Windows es Ctrl+Shift+V. Trabajar desde `~` (carpeta de Linux), no desde `/mnt/c/WINDOWS/system32`.
+
+Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 instalados; la app **abre y se mantiene abierta** con el modo software. Falta probar: conexión con Ollama vía red espejo, permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
 
 ## Reglas éticas y de seguridad (obligatorias, no negociables)
 
@@ -136,7 +148,8 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 - Asignar los 5 roles: Integración NyarchAssistant · Seguridad y ética · Percepción y datos · IA · Ejecución y documentación.
 - Confirmar licencia de NyarchAssistant (`COPYING`).
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
-- Probar NyarchAssistant (Flatpak) dentro de WSL2: que abra la ventana, que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione y que se conecte a Ollama.
+- Terminar prueba en WSL2 (la ventana ya abre con modo software): que se conecte a Ollama con la red espejo y que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione.
+- Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
 - Unificar `_Por revisar` vs "Por revisar".
 - Logo y paleta de colores de Archy (en proceso).
 - Verificar en el wiki de Newelle el formato real de extensiones y herramientas: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
