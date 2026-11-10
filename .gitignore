@@ -3,3 +3,8 @@ flatpak-pip-generator
 nyarchassistant.flatpak
 __pycache__/
 *.pyc
+
+# Archy: entorno virtual y caché de pruebas
+archy/.venv/
+.pytest_cache/
+archy/tests/_tmp_pruebas/

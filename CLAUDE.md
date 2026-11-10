@@ -1,7 +1,7 @@
 # Archy — Agente organizador de archivos para estudiantes de TIID
 
-> Contexto del proyecto para Claude Code. **Fase actual: planeación.** Todavía NO se escribe código del agente.
-> Por ahora, ayuda a entender, revisar y preparar (leer documentación, resolver dudas, revisar el plan, preparar el entorno) y pregunta antes de crear archivos de código.
+> Contexto del proyecto para Claude Code. **Fase actual: desarrollo** (desde el 10 nov). Planeación y entorno listos; ahora se construye `archy/nucleo/` módulo por módulo, cada uno con sus pruebas `pytest`.
+> Antes de escribir un módulo nuevo, explica el enfoque y espera aprobación. Todo cambio debe respetar las reglas éticas.
 
 ## Qué es
 
@@ -41,8 +41,8 @@ Ciclo del agente: **Percibir → Razonar → Planear → Confirmar → Actuar �
 | Nombres de archivo | **PascalCase**, sin acentos ni ñ, sin espacios ni símbolos, máx. 50 caracteres, extensión en minúsculas (ej. `AlgoritmoBolsaDePalabras.py`). Solo se renombra si el nombre actual no es descriptivo. |
 | Estructura de carpetas | **Materia → Tipo**. **No** se organiza por parcial. |
 | Tipos | Código, Documentos, Datos, Presentaciones, Otros |
-| Carpeta de dudas | `_Por revisar` (el doc a veces dice "Por revisar"; falta unificar) |
-| Licencia | Probablemente GPL-3.0 para ser compatible con NyarchAssistant (pendiente confirmar en su `COPYING`) |
+| Carpeta de dudas | `_Por revisar` (unificado el 10 nov; así está en `config.yaml` → `carpeta_dudas`) |
+| Licencia | **GPL-3.0**, compatible con NyarchAssistant (confirmado el 10 nov: su `COPYING` es GPL v3 y su appdata dice `GPL-3.0-or-later`) |
 
 Estructura resultante:
 
@@ -79,6 +79,15 @@ Qwen también conversa con el usuario y decide qué herramienta llamar, pero **l
 | `nucleo/bitacora.py` | Log en SQLite y deshacer. |
 
 La lógica vive en `nucleo/` para poder probarla con `pytest` sin NyarchAssistant. Debe ser independiente del sistema operativo: usar `pathlib`, no escribir rutas fijas en el código (todo sale de `config.yaml`) y que las pruebas pasen tanto en Linux como en Windows. Las extensiones se instalan como un solo `.py`; si hace falta, `empaquetar.py` une todo.
+
+**Estado de los módulos (10 nov):** `config.yaml` ✅ · `nucleo/guardian.py` ✅ (82 pruebas en WSL, 77 en Windows; las que se saltan son exclusivas del otro sistema o necesitan permisos de administrador para crear symlinks en Windows) · `escaner`, `extractor`, `clasificador`, `nombrador`, `planificador`, `ejecutor`, `bitacora` pendientes.
+
+**Cómo correr las pruebas:**
+- Windows (una sola vez: `python -m venv archy\.venv` y `archy\.venv\Scripts\python -m pip install pytest pyyaml`): desde `archy/`, `.venv\Scripts\python -m pytest`.
+- Linux/WSL: desde `archy/`, `python3 -m pytest` (en Ubuntu sin pytest se puede usar el del entorno de Windows: `PYTHONPATH=.venv/Lib/site-packages python3 -m pytest -p no:cacheprovider`).
+- En Windows las pruebas usan `archy/tests/_tmp_pruebas/` porque la carpeta temporal normal está dentro de AppData, que el guardián bloquea a propósito.
+
+**Guardián (`nucleo/guardian.py`):** `Guardian(carpeta_raiz, lista_negra_extra, home)`. `validar(ruta)` devuelve la ruta segura o lanza `AccesoDenegado` (con `motivo` en español para la bitácora); `revisar(ruta)` hace lo mismo pero devuelve una `Decision` y nunca lanza (usar esta en las herramientas, porque `create_io_tool` no atrapa errores). Al crearse rechaza una carpeta raíz que no exista, que sea enlace, de sistema o la carpeta personal completa. La lista negra base está en el código; `config.yaml` solo puede agregar rutas. Además de la lista de las reglas éticas bloquea `/sbin`, `/dev`, `/lib`, `/lib64`, `/run`, `/home` exacto, `~/.gnupg`, `~/.local`, rutas de red de Windows y rutas `C:\...` escritas dentro de WSL.
 
 Configuración en `config.yaml`: carpeta raíz, modo (`simulacion` por defecto), `permitir_renombrar: preguntar`, `formato_nombres: PascalCase`, `organizar_por_parcial: false`, extensiones permitidas, tamaño máximo 50 MB, modelo, umbrales 0.70/0.45 y las 3 materias con descripción y palabras clave.
 
@@ -172,7 +181,7 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 |---|---|
 | Jue 5 nov | Planeación, documentación (plan, normas ISO, cronograma) y diseño de identidad (nombre y eslogan) ✅ |
 | Vie 6 nov | Instalar NyarchAssistant + Ollama + qwen2.5:3b en ≥ 2 equipos Linux y probarlo en ≥ 1 equipo Windows con WSL2; leer el wiki de extensiones y hacer una extensión "hola mundo"; crear repo y `config.yaml` |
-| 9–13 nov | `guardian` + pruebas de seguridad; permiso Flatpak; `escaner` + `extractor`; dataset de prueba etiquetado (60–90 archivos) |
+| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak; `escaner` + `extractor`; dataset de prueba etiquetado (60–90 archivos) |
 | Lun 16 nov | Feriado |
 | 17–20 nov | Clasificador (reglas + embeddings) y medición; Qwen para dudosos y `nombrador` PascalCase |
 | 23–27 nov | Herramientas de la extensión, bitácora, prompt del sistema, perfil. **Vie 27: congelar funciones.** |
@@ -188,7 +197,6 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 ## Pendientes abiertos
 
 - Asignar los 5 roles: Integración NyarchAssistant · Seguridad y ética · Percepción y datos · IA · Ejecución y documentación.
-- Confirmar licencia de NyarchAssistant (`COPYING`).
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
 - Terminar prueba en WSL2: falta que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione (ventana, Ollama y extensión ya funcionan).
 - **Contexto de Ollama (problema confirmado el 6 nov):** Ollama usa 4096 tokens por defecto y NyarchAssistant no le indica otro valor (no manda `num_ctx`). Cada mensaje de NyarchAssistant pesa ~5,700–8,600 tokens (instrucciones + definición de todas sus herramientas + historial, según `data/usage.sqlite3` de la app), así que Ollama recorta el prompt y Qwen devuelve **respuestas vacías** (`out=0` en ese registro). Pasa sobre todo al usar una herramienta (`saludar`), porque la llamada y su resultado agregan más texto; los mensajes cortos sí responden.
@@ -197,7 +205,6 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
   - Solución de fondo: en el perfil "Organizador TIID", desactivar las herramientas y prompts de NyarchAssistant que Archy no usa (búsqueda web, memoria, terminal, etc.) para achicar el prompt y que también funcione en laptops con CPU.
 - Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
 - Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
-- Unificar `_Por revisar` vs "Por revisar".
 - Logo y paleta de colores de Archy (en proceso).
 - ~~Verificar en el wiki de Newelle el formato real de extensiones y herramientas~~ ✅ Hecho el 6 nov (ver "Cómo son las extensiones"). Referencia: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
 
