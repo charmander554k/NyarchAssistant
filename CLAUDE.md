@@ -80,7 +80,11 @@ Qwen también conversa con el usuario y decide qué herramienta llamar, pero **l
 
 La lógica vive en `nucleo/` para poder probarla con `pytest` sin NyarchAssistant. Debe ser independiente del sistema operativo: usar `pathlib`, no escribir rutas fijas en el código (todo sale de `config.yaml`) y que las pruebas pasen tanto en Linux como en Windows. Las extensiones se instalan como un solo `.py`; si hace falta, `empaquetar.py` une todo.
 
-**Estado de los módulos (10 nov):** `config.yaml` ✅ · `nucleo/guardian.py` ✅ (82 pruebas en WSL, 77 en Windows; las que se saltan son exclusivas del otro sistema o necesitan permisos de administrador para crear symlinks en Windows) · `escaner`, `extractor`, `clasificador`, `nombrador`, `planificador`, `ejecutor`, `bitacora` pendientes.
+**Estado de los módulos (11 nov):** `config.yaml` ✅ · `nucleo/guardian.py` ✅ · `nucleo/configuracion.py` ✅ · `nucleo/escaner.py` ✅ — en total 121 pruebas pasan en WSL y 116 en Windows (las que se saltan son exclusivas del otro sistema o necesitan permisos de administrador para crear symlinks en Windows). El escáner también se probó dentro del sandbox de NyarchAssistant (Python 3.13) sobre una carpeta `Trabajos` real. Pendientes: `extractor`, `clasificador`, `nombrador`, `planificador`, `ejecutor`, `bitacora`.
+
+**Configuración (`nucleo/configuracion.py`):** `cargar_config(ruta)` devuelve un `Config` validado; si hay errores lanza `ConfigInvalida` con **todos** los problemas juntos (claves desconocidas o faltantes, umbrales fuera de `0 < bajo < alto <= 1`, extensiones repetidas o sin punto, materias repetidas, etc.). `config.tipo_de(".py")` → `"Codigo"`; extensiones no listadas → `"Otros"`. PyYAML ya viene en el Flatpak.
+
+**Escáner (`nucleo/escaner.py`):** `escanear(guardian, config)` devuelve `archivos` (ruta relativa, extensión, tipo, tamaño, fecha, **SHA-256**, y `ubicacion`: `suelto` / `organizado` (ya en `Materia/Tipo/`) / `por_revisar`) y `omitidos` con motivo (ocultos, enlaces, `.lnk`, temporales de Office `~$`, más de 50 MB, archivos que no se pueden leer). Solo lee bytes para el hash, nunca el texto. Toda ruta pasa por `guardian.revisar()`. No sigue enlaces ni entra a carpetas ocultas. Máximo 2,000 archivos por escaneo. Orden alfabético estable. Extensiones no listadas se incluyen como `Otros` (se mueven, pero el extractor no las lee).
 
 **Cómo correr las pruebas:**
 - Windows (una sola vez: `python -m venv archy\.venv` y `archy\.venv\Scripts\python -m pip install pytest pyyaml`): desde `archy/`, `.venv\Scripts\python -m pytest`.
@@ -117,7 +121,7 @@ NyarchAssistant no corre nativo en Windows: depende de WebKitGTK 6.0 (se carga a
 
 Consejos: en la ventana de Ubuntu, pegar es con **clic derecho** (Ctrl+V escribe `^V`); en Terminal de Windows es Ctrl+Shift+V. Trabajar desde `~` (carpeta de Linux), no desde `/mnt/c/WINDOWS/system32`.
 
-Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` local llama correctamente a la herramienta `saludar` de la extensión "hola mundo" (confirmado con `ollama ps`). Nota: la primera prueba de la extensión corrió por error en "Nyarch Demo API" (nube), porque no se había cambiado el proveedor; la prueba válida con Qwen local es la segunda. Qwen corre en CPU (lento, pero funciona) y su texto final a veces sale confuso (mezcla "eres"/"soy", agrega una "Task List" innecesaria), lo que confirma que la clasificación debe hacerla la extensión y no el modelo. Falta probar: permiso `--filesystem` a `/mnt/c/.../Trabajos` y selector de archivos.
+Estado (6 nov 2026, PC de Roberto, Windows 11): WSL2 + Ubuntu + Flatpak + NyarchAssistant 1.6.0 **funcionando**: la app abre con modo software, se conecta al Ollama de Windows por la red espejo y `qwen2.5:3b` local llama correctamente a la herramienta `saludar` de la extensión "hola mundo" (confirmado con `ollama ps`). Nota: la primera prueba de la extensión corrió por error en "Nyarch Demo API" (nube), porque no se había cambiado el proveedor; la prueba válida con Qwen local es la segunda. Qwen corre en CPU (lento, pero funciona) y su texto final a veces sale confuso (mezcla "eres"/"soy", agrega una "Task List" innecesaria), lo que confirma que la clasificación debe hacerla la extensión y no el modelo. El 11 nov se aplicó y verificó el permiso restringido a `/mnt/c/Users/rober/Documents/Trabajos` (ver "Acceso mínimo"). Falta probar el selector de archivos.
 
 ## Servidor Ollama remoto (opcional, solo para desarrollo)
 
@@ -163,7 +167,11 @@ Vienen del documento de ética del equipo. Cualquier propuesta debe respetarlas:
 
 - **Nunca borra archivos.** No debe existir una función de borrado.
 - **No sobrescribe:** si el destino existe, agrega sufijo `_2`.
-- **Acceso mínimo:** solo la carpeta `Trabajos` configurada. Doble barrera: permiso Flatpak solo a esa carpeta (`flatpak override --user --filesystem=~/Documentos/Trabajos moe.nyarchlinux.assistant`, **no** `--filesystem=home`) + el `guardian`. En WSL el permiso apunta a la carpeta de Windows, ej. `--filesystem=/mnt/c/Users/<usuario>/Documents/Trabajos`, **nunca** a `/mnt/c` completo.
+- **Acceso mínimo:** solo la carpeta `Trabajos` configurada. Doble barrera: permiso Flatpak solo a esa carpeta + el `guardian`. **Ojo:** el manifiesto de NyarchAssistant trae `--filesystem=home` (toda la carpeta personal) y `--talk-name=org.freedesktop.Flatpak` (permite `flatpak-spawn --host`, o sea, ejecutar comandos fuera del sandbox y saltarse cualquier restricción). Hay que quitar ambos con un override:
+  - Linux: `flatpak override --user --nofilesystem=home --no-talk-name=org.freedesktop.Flatpak --filesystem=~/Documentos/Trabajos moe.nyarchlinux.assistant`
+  - WSL: igual, pero `--filesystem=/mnt/c/Users/<usuario>/Documents/Trabajos`, **nunca** `/mnt/c` completo.
+  - Comprobar: `flatpak override --user --show moe.nyarchlinux.assistant` debe mostrar `filesystems=!home;<ruta de Trabajos>;` y `org.freedesktop.Flatpak=none`.
+  - Verificado el 11 nov en WSL: dentro del sandbox se ve `Trabajos` y la configuración de la app (extensiones), pero no `~/Documentos`, `~/.ssh` ni el resto de `C:\`, y `flatpak-spawn --host` falla. La app sigue abriendo; los mensajes `Portal call failed … --host only works…` en la terminal son la app intentando ejecutar comandos fuera del sandbox y siendo bloqueada (esperado). Se pierde la ejecución de comandos de terminal (que las reglas ya piden desactivar) y la aceleración GPU de llama.cpp (no se usa).
 - **Lista negra siempre bloqueada:** `/`, `/etc`, `/usr`, `/bin`, `/boot`, `/root`, `/var`, `/proc`, `/sys`, `~/.ssh`, `~/.config`, `~/.var`, carpetas ocultas. En WSL además: `/mnt` y la raíz de cada unidad (`/mnt/c`, `/mnt/d`…) como ruta exacta (igual que `/`, porque `Trabajos` vive debajo), y con todo su contenido `/mnt/c/Windows`, `/mnt/c/Program Files`, `/mnt/c/Program Files (x86)`, `/mnt/c/ProgramData`, `/mnt/c/Users/<usuario>/AppData`. No sigue enlaces simbólicos ni accesos directos (`.lnk`).
 - **Control humano:** modo simulación por defecto, el plan se muestra antes de actuar, aprobación por archivo, edición del plan y comando deshacer.
 - **Transparencia:** cada decisión muestra confianza y motivo; el agente se presenta como "agente automatizado, no una persona" (el avatar animado de NyarchAssistant se desactiva).
@@ -181,7 +189,7 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 |---|---|
 | Jue 5 nov | Planeación, documentación (plan, normas ISO, cronograma) y diseño de identidad (nombre y eslogan) ✅ |
 | Vie 6 nov | Instalar NyarchAssistant + Ollama + qwen2.5:3b en ≥ 2 equipos Linux y probarlo en ≥ 1 equipo Windows con WSL2; leer el wiki de extensiones y hacer una extensión "hola mundo"; crear repo y `config.yaml` |
-| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak; `escaner` + `extractor`; dataset de prueba etiquetado (60–90 archivos) |
+| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak ✅ (11 nov); `escaner` ✅ (11 nov) + `extractor`; dataset de prueba etiquetado (60–90 archivos) |
 | Lun 16 nov | Feriado |
 | 17–20 nov | Clasificador (reglas + embeddings) y medición; Qwen para dudosos y `nombrador` PascalCase |
 | 23–27 nov | Herramientas de la extensión, bitácora, prompt del sistema, perfil. **Vie 27: congelar funciones.** |
@@ -198,13 +206,13 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 
 - Asignar los 5 roles: Integración NyarchAssistant · Seguridad y ética · Percepción y datos · IA · Ejecución y documentación.
 - Confirmar quién tiene Linux y quién usará Windows con WSL2 (revisar que su PC tenga virtualización activada); VM o USB solo si WSL no es posible.
-- Terminar prueba en WSL2: falta que el permiso `--filesystem` a `/mnt/c/.../Trabajos` funcione (ventana, Ollama y extensión ya funcionan).
+- ~~Permiso Flatpak a `/mnt/c/.../Trabajos` en WSL2~~ ✅ 11 nov (ver "Acceso mínimo"). Falta probar el selector de archivos de la app con el permiso restringido.
 - **Contexto de Ollama (problema confirmado el 6 nov):** Ollama usa 4096 tokens por defecto y NyarchAssistant no le indica otro valor (no manda `num_ctx`). Cada mensaje de NyarchAssistant pesa ~5,700–8,600 tokens (instrucciones + definición de todas sus herramientas + historial, según `data/usage.sqlite3` de la app), así que Ollama recorta el prompt y Qwen devuelve **respuestas vacías** (`out=0` en ese registro). Pasa sobre todo al usar una herramienta (`saludar`), porque la llamada y su resultado agregan más texto; los mensajes cortos sí responden.
   - Arreglo: en la PC que corre Ollama, `setx OLLAMA_CONTEXT_LENGTH 16384` y reiniciar Ollama. Comprobar con `ollama ps` (columna CONTEXT) o `/api/ps` (`context_length`). En GPU cuesta ~0.6 GB más de VRAM; en CPU hace más lentas las respuestas.
   - Pendiente: verificar que con 16384 `saludar` responde, y medir cuánto pesa el prompt.
   - Solución de fondo: en el perfil "Organizador TIID", desactivar las herramientas y prompts de NyarchAssistant que Archy no usa (búsqueda web, memoria, terminal, etc.) para achicar el prompt y que también funcione en laptops con CPU.
 - Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
-- Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local.
+- Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local. También descarga al arrancar el catálogo de modelos de `ollama.com` (lista pública, no manda datos del usuario).
 - Logo y paleta de colores de Archy (en proceso).
 - ~~Verificar en el wiki de Newelle el formato real de extensiones y herramientas~~ ✅ Hecho el 6 nov (ver "Cómo son las extensiones"). Referencia: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
 
