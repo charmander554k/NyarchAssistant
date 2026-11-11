@@ -1,0 +1,75 @@
+# Configuración de Archy
+# Todo lo que cambia entre PCs o entre estudiantes vive aquí, no en el código.
+
+# Carpeta que Archy puede organizar. Es la ÚNICA a la que tiene acceso.
+# Linux:           "~/Documentos/Trabajos"
+# Windows (WSL):   "/mnt/c/Users/<usuario>/Documents/Trabajos"
+carpeta_raiz: "~/Documentos/Trabajos"
+
+# simulacion: solo muestra el plan, no mueve nada.  real: mueve lo aprobado.
+modo: simulacion
+
+# siempre | preguntar | nunca
+permitir_renombrar: preguntar
+formato_nombres: PascalCase
+organizar_por_parcial: false
+
+# Carpeta para lo que Archy no puede clasificar con confianza.
+carpeta_dudas: "_Por revisar"
+
+# Archivos más grandes que esto se ignoran (no se leen ni se mueven).
+tamano_maximo_mb: 50
+
+# Extensiones que Archy puede leer y mover, agrupadas por tipo.
+# El nombre del tipo es también el nombre de la subcarpeta.
+tipos:
+  Codigo: [".py", ".ipynb", ".java", ".c", ".cpp", ".js", ".html", ".css", ".sql", ".sh", ".r"]
+  Documentos: [".docx", ".pdf", ".txt", ".md", ".odt"]
+  Datos: [".csv", ".xlsx", ".json", ".xml", ".tsv", ".ods"]
+  Presentaciones: [".pptx", ".odp"]
+  Otros: []   # cualquier otra extensión permitida que no esté arriba
+
+# Modelo de lenguaje (vía Ollama). Solo se usa para casos dudosos.
+modelo:
+  nombre: "qwen2.5:3b"          # "qwen2.5:1.5b" en PCs lentas
+  contexto_minimo: 16384        # con menos, NyarchAssistant responde vacío
+
+# Modelo de embeddings local para la similitud semántica.
+embeddings:
+  modelo: "paraphrase-multilingual-MiniLM-L12-v2"
+
+# Umbrales de confianza del clasificador.
+umbrales:
+  alto: 0.70   # >= alto: se propone mover
+  bajo: 0.45   # entre bajo y alto: se propone con advertencia; < bajo: carpeta_dudas
+
+# Cuántos caracteres del contenido lee el extractor por archivo.
+caracteres_a_leer: 2000
+
+# Materias. El nombre es también el nombre de la carpeta.
+materias:
+  - nombre: "Seguridad Informática"
+    descripcion: >-
+      Seguridad de la información: criptografía, redes, firewalls, análisis de
+      vulnerabilidades, escaneo de puertos, hashing, autenticación y malware.
+    palabras_clave: [cripto, cifrado, firewall, nmap, hash, vulnerabilidad,
+                     malware, puerto, ssl, tls, rsa, aes, ataque, phishing,
+                     wireshark, contrasena, seguridad]
+  - nombre: "Minería de Texto"
+    descripcion: >-
+      Procesamiento de texto: limpieza, tokenización, stopwords, bolsa de
+      palabras, TF-IDF, análisis de sentimiento y clasificación de documentos.
+    palabras_clave: [nltk, tfidf, tf-idf, corpus, token, stopwords, stemming,
+                     lematizacion, sentimiento, spacy, bolsa, ngrama, texto,
+                     wordcloud, mineria]
+  - nombre: "Fundamentos de IA"
+    descripcion: >-
+      Inteligencia artificial: agentes, búsqueda, heurísticas, lógica,
+      perceptrón, redes neuronales y aprendizaje automático básico.
+    palabras_clave: [perceptron, agente, heuristica, busqueda, astar, bfs, dfs,
+                     neurona, red neuronal, logica difusa, minimax, regresion,
+                     knn, arbol de decision, inteligencia artificial]
+
+# Rutas que se suman a la lista negra del guardián.
+# Solo sirve para AGREGAR: la lista negra base está en el código y no se puede quitar.
+lista_negra_extra: []
