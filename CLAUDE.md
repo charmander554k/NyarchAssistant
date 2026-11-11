@@ -68,7 +68,7 @@ Qwen también conversa con el usuario y decide qué herramienta llamar, pero **l
 
 | Módulo | Responsabilidad |
 |---|---|
-| `organizador.py` | La extensión. Registra herramientas: `escanear_carpeta`, `proponer_plan`, `aplicar_plan`, `deshacer`, `historial`. Agrega el prompt del sistema. |
+| `organizador.py` | La extensión. Ya tiene el panel explorador y el tema (11 nov). Falta registrar las herramientas: `escanear_carpeta`, `proponer_plan`, `aplicar_plan`, `deshacer`, `historial`, y agregar el prompt del sistema. |
 | `nucleo/guardian.py` | Seguridad: toda ruta debe quedar dentro de la carpeta autorizada y fuera de la lista negra. Todo pasa por aquí. |
 | `nucleo/escaner.py` | Lista archivos, extensión, tamaño, fechas, hash. |
 | `nucleo/extractor.py` | Texto de .py, .ipynb, .txt, .md, .docx, .pdf, .pptx, .csv, .xlsx. |
@@ -115,7 +115,7 @@ NyarchAssistant no corre nativo en Windows: depende de WebKitGTK 6.0 (se carga a
    - Elegir **"Ollama Instance"** (no "Ollama Cloud" ni "Local Model"). Si sale en gris, primero clic en la flecha azul ↓ para instalar la librería `ollama`.
    - En sus opciones (⌄): endpoint `http://localhost:11434`; **Ollama Model**: botón ↻ y elegir `qwen2.5:3b` (o `qwen2.5:1.5b`), porque por defecto trae `qwen3.5:9b`, que no está descargado; **Enable Thinking** desactivado (Qwen 2.5 no lo soporta); **Native Tool Calling** activado; **Automatically Serve** apagado.
    - Comprobar: el encabezado del chat dice "Ollama Instance - qwen2.5:3b" y, mientras responde, `ollama ps` (en PowerShell) muestra `qwen2.5:3b`.
-5. Desactivar el avatar animado (Live2D) desde la configuración: en modo software genera errores y consume CPU, y además lo piden las reglas éticas.
+5. No usar el avatar animado (Live2D): en modo software genera errores y consume CPU, y además lo piden las reglas éticas. `archy/instalar.sh` crea el perfil "Archy", que usa el panel explorador en su lugar (ver "Interfaz de Archy").
 6. La carpeta `Trabajos` de Windows se ve como `/mnt/c/Users/<usuario>/Documents/Trabajos`. El permiso Flatpak y el `guardian` apuntan a esa ruta (ver lista negra abajo).
 7. Leer archivos en `/mnt/c` es más lento que en Linux, pero para el dataset (60–90 archivos) no afecta.
 
@@ -150,6 +150,28 @@ Medido el 6 nov con `qwen2.5:3b`: PC con GPU vía Tailscale ≈ **110 tokens/s**
 - En redes que bloquean conexión directa (como la de la universidad), Tailscale pasa por un relevo (DERP); funciona igual, con algo más de latencia.
 - Solo para **desarrollo con el dataset de prueba**. El contenido de los archivos viaja (cifrado) a otra PC, así que la **demo y el producto final** usan el Ollama de la propia PC del estudiante (`localhost`), como exige la regla de privacidad.
 - Tailscale es gratis; su cliente es open source pero su servidor de coordinación no. Alternativa 100 % open source: Headscale (más complicada). Para desarrollo basta Tailscale.
+
+## Interfaz de Archy (11 nov)
+
+Se cambió el diseño **sin recompilar NyarchAssistant**, solo con la extensión `archy/organizador.py`:
+
+- **Panel "Archy" en lugar de Arch-chan:** la extensión registra un "avatar" (`PanelArchy`, clave `archy`) que en el panel lateral muestra un explorador de **solo lectura** de `Trabajos`: logo, nombre, eslogan, la etiqueta "Agente automatizado · no es una persona", la ruta, un resumen y grupos desplegables (Sin organizar, cada materia, `_Por revisar`, otras carpetas y "No visibles" con el motivo de cada archivo omitido). Usa `guardian` + `escaner` en segundo plano y tiene botón de actualizar.
+- **Perfil "Archy":** `archy/perfil_archy.py` lo crea como hijo de "Arch-chan" (hereda todo, incluido Ollama) y solo cambia el avatar (`archy`), la foto (el logo) y los prompts ("Show a personality" y "Show expressions" apagados). **"Arch-chan" no se borra**: sigue como perfil y Live2D sigue instalado; se puede volver desde el selector de perfiles. Ojo: los perfiles guardan su propio avatar, por eso cambiar solo Configuración → Avatar no basta (al arrancar, el perfil "Arch-chan" vuelve a poner Live2D).
+- **Paleta** (colores exactos de la imagen del equipo; contraste WCAG medido):
+
+  | Color | Hex | Uso | Contraste |
+  |---|---|---|---|
+  | Azul marino | `#152F67` | Barra superior | 12.8:1 con blanco |
+  | Azul petróleo | `#1D6289` | Acento (botones, contador "Sin organizar") | 6.6:1 con blanco |
+  | Turquesa | `#239CAC` | Acento en modo oscuro, detalles | 3.3:1 con blanco: no usar para texto chico sobre blanco |
+  | Arena | `#D9C97C` | Contador "Por revisar" (texto marino) | 7.7:1 con marino |
+  | Lima | `#D0DB93` | Contador de materias y etiqueta "Agente automatizado" (texto marino) | 8.7:1 con marino |
+
+  El tema se aplica a toda la app con CSS desde la extensión y se apaga en Configuración → Extensiones → Archy → "Colores de Archy".
+- **Logo:** `archy/assets/logo_original.jpg` (original), `logo.png` (512 px, esquinas redondeadas, para el panel) y `perfil.png` (256 px, foto del perfil). Usa un azul eléctrico (`#0513A8`) que no está en la paleta; combina, pero si se quiere coherencia total habría que ajustar el logo.
+- **Limitación:** el icono y el nombre de la app en el menú y la barra de tareas siguen siendo de NyarchAssistant; cambiarlos obliga a recompilar el Flatpak (horas, varios GB, cada compañero instalaría nuestra versión). Se decidió no hacerlo.
+- **Instalación en cada PC:** con la app cerrada, `bash archy/instalar.sh <ruta de Trabajos>` (en Linux sin argumento usa `~/Documentos/Trabajos`). Copia la extensión, el núcleo, el logo y `config.yaml` (si ya existe lo conserva y solo actualiza `carpeta_raiz`) a `~/.var/app/moe.nyarchlinux.assistant/data/archy/`, restringe el Flatpak a `Trabajos`, aplica el modo software en WSL y crea/activa el perfil "Archy". `.gitattributes` fuerza saltos de línea LF en los `.sh` para que el script funcione aunque se clone en Windows.
+- **Verificado el 11 nov (WSL):** la app abre con el perfil "Archy", no carga Live2D, sin errores en el registro; vista previa del panel en modo claro y oscuro generada dentro del sandbox.
 
 ## Cómo son las extensiones (verificado el 6 nov con `archy/hola_archy.py`)
 
@@ -189,7 +211,7 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 |---|---|
 | Jue 5 nov | Planeación, documentación (plan, normas ISO, cronograma) y diseño de identidad (nombre y eslogan) ✅ |
 | Vie 6 nov | Instalar NyarchAssistant + Ollama + qwen2.5:3b en ≥ 2 equipos Linux y probarlo en ≥ 1 equipo Windows con WSL2; leer el wiki de extensiones y hacer una extensión "hola mundo"; crear repo y `config.yaml` |
-| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak ✅ (11 nov); `escaner` ✅ (11 nov) + `extractor`; dataset de prueba etiquetado (60–90 archivos) |
+| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak ✅ (11 nov); `escaner` ✅ (11 nov); nueva interfaz de Archy ✅ (11 nov, no planeada); `extractor` (movido al vie 13); dataset de prueba etiquetado (60–90 archivos) |
 | Lun 16 nov | Feriado |
 | 17–20 nov | Clasificador (reglas + embeddings) y medición; Qwen para dudosos y `nombrador` PascalCase |
 | 23–27 nov | Herramientas de la extensión, bitácora, prompt del sistema, perfil. **Vie 27: congelar funciones.** |
@@ -211,9 +233,9 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
   - Arreglo: en la PC que corre Ollama, `setx OLLAMA_CONTEXT_LENGTH 16384` y reiniciar Ollama. Comprobar con `ollama ps` (columna CONTEXT) o `/api/ps` (`context_length`). En GPU cuesta ~0.6 GB más de VRAM; en CPU hace más lentas las respuestas.
   - Pendiente: verificar que con 16384 `saludar` responde, y medir cuánto pesa el prompt.
   - Solución de fondo: en el perfil "Organizador TIID", desactivar las herramientas y prompts de NyarchAssistant que Archy no usa (búsqueda web, memoria, terminal, etc.) para achicar el prompt y que también funcione en laptops con CPU.
-- Perfil "Organizador TIID": quitar la personalidad "Arch-chan". En la prueba del 6 nov el modelo respondió como personaje ("¡Listo! (Happy)", "(Wink)", tono coqueto), lo que choca con la regla de transparencia. Desactivar "Show a personality" y "Show expressions" y renombrar el asistente a "Archy".
+- ~~Perfil sin la personalidad "Arch-chan"~~ ✅ 11 nov: el perfil "Archy" (creado por `instalar.sh`) apaga "Show a personality" y "Show expressions" y usa el nombre y logo de Archy. Falta en ese perfil: desactivar la ejecución de comandos de terminal, Smart Prompts y las herramientas que Archy no usa (ver "Contexto de Ollama").
 - Averiguar qué descarga NyarchAssistant de HuggingFace al arrancar (probablemente un modelo de embeddings o voz activado por defecto) y desactivarlo en el perfil "Organizador TIID" si choca con la regla de 100 % local. También descarga al arrancar el catálogo de modelos de `ollama.com` (lista pública, no manda datos del usuario).
-- Logo y paleta de colores de Archy (en proceso).
+- ~~Logo y paleta de colores de Archy~~ ✅ 11 nov (ver "Interfaz de Archy").
 - ~~Verificar en el wiki de Newelle el formato real de extensiones y herramientas~~ ✅ Hecho el 6 nov (ver "Cómo son las extensiones"). Referencia: [Developing extensions](https://github.com/qwersyk/Newelle/wiki/Developing-extensions), [Creating Tools](https://github.com/qwersyk/Newelle/wiki/Creating-Tools).
 
 ## Cómo ayudar en esta fase
