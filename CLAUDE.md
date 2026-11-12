@@ -80,14 +80,16 @@ Qwen también conversa con el usuario y decide qué herramienta llamar, pero **l
 
 La lógica vive en `nucleo/` para poder probarla con `pytest` sin NyarchAssistant. Debe ser independiente del sistema operativo: usar `pathlib`, no escribir rutas fijas en el código (todo sale de `config.yaml`) y que las pruebas pasen tanto en Linux como en Windows. Las extensiones se instalan como un solo `.py`; si hace falta, `empaquetar.py` une todo.
 
-**Estado de los módulos (11 nov):** `config.yaml` ✅ · `nucleo/guardian.py` ✅ · `nucleo/configuracion.py` ✅ · `nucleo/escaner.py` ✅ — en total 121 pruebas pasan en WSL y 116 en Windows (las que se saltan son exclusivas del otro sistema o necesitan permisos de administrador para crear symlinks en Windows). El escáner también se probó dentro del sandbox de NyarchAssistant (Python 3.13) sobre una carpeta `Trabajos` real. Pendientes: `extractor`, `clasificador`, `nombrador`, `planificador`, `ejecutor`, `bitacora`.
+**Estado de los módulos (12 nov):** `config.yaml` ✅ · `nucleo/guardian.py` ✅ · `nucleo/configuracion.py` ✅ · `nucleo/escaner.py` ✅ · `nucleo/extractor.py` ✅ — en total 146 pruebas pasan en WSL y 145 en Windows (las que se saltan son exclusivas del otro sistema; en Windows las de symlinks se saltan si no hay permisos de administrador o modo desarrollador). Escáner y extractor también se probaron dentro del sandbox de NyarchAssistant (Python 3.13, pypdf 5.9) sobre una carpeta `Trabajos` real. Pendientes: `clasificador`, `nombrador`, `planificador`, `ejecutor`, `bitacora`.
+
+**Extractor (`nucleo/extractor.py`):** `extraer(guardian, config, ruta)` devuelve una `Extraccion` con `texto` (como máximo `caracteres_a_leer`, 2,000), `metodo`, `truncado` y `aviso`. **Nunca lanza errores**: un archivo dañado da texto vacío y un aviso. Formatos: texto plano (UTF-8 y, si falla, cp1252/Latin-1 para acentos de Windows); código (pone **primero** imports, definiciones y comentarios); `.ipynb` (celdas Markdown + código); `.csv`/`.tsv` (`Columnas: …` y hasta 5 filas, detecta `,` `;` tab `|`); `.docx`, `.pptx`, `.xlsx` y OpenDocument leídos como ZIP con XML **sin librerías extra**; `.pdf` con `pypdf` (ya viene en el Flatpak; máximo 5 páginas). Otras extensiones → `no_soportado`. Seguridad: toda ruta pasa por el guardián, solo lectura, máximo 256 KB de texto y 4 MB descomprimidos por parte de un ZIP (protege contra bombas ZIP), detecta binarios disfrazados. El texto nunca se guarda en la bitácora.
 
 **Configuración (`nucleo/configuracion.py`):** `cargar_config(ruta)` devuelve un `Config` validado; si hay errores lanza `ConfigInvalida` con **todos** los problemas juntos (claves desconocidas o faltantes, umbrales fuera de `0 < bajo < alto <= 1`, extensiones repetidas o sin punto, materias repetidas, etc.). `config.tipo_de(".py")` → `"Codigo"`; extensiones no listadas → `"Otros"`. PyYAML ya viene en el Flatpak.
 
 **Escáner (`nucleo/escaner.py`):** `escanear(guardian, config)` devuelve `archivos` (ruta relativa, extensión, tipo, tamaño, fecha, **SHA-256**, y `ubicacion`: `suelto` / `organizado` (ya en `Materia/Tipo/`) / `por_revisar`) y `omitidos` con motivo (ocultos, enlaces, `.lnk`, temporales de Office `~$`, más de 50 MB, archivos que no se pueden leer). Solo lee bytes para el hash, nunca el texto. Toda ruta pasa por `guardian.revisar()`. No sigue enlaces ni entra a carpetas ocultas. Máximo 2,000 archivos por escaneo. Orden alfabético estable. Extensiones no listadas se incluyen como `Otros` (se mueven, pero el extractor no las lee).
 
 **Cómo correr las pruebas:**
-- Windows (una sola vez: `python -m venv archy\.venv` y `archy\.venv\Scripts\python -m pip install pytest pyyaml`): desde `archy/`, `.venv\Scripts\python -m pytest`.
+- Windows (una sola vez: `python -m venv archy\.venv` y `archy\.venv\Scripts\python -m pip install pytest pyyaml pypdf`): desde `archy/`, `.venv\Scripts\python -m pytest`.
 - Linux/WSL: desde `archy/`, `python3 -m pytest` (en Ubuntu sin pytest se puede usar el del entorno de Windows: `PYTHONPATH=.venv/Lib/site-packages python3 -m pytest -p no:cacheprovider`).
 - En Windows las pruebas usan `archy/tests/_tmp_pruebas/` porque la carpeta temporal normal está dentro de AppData, que el guardián bloquea a propósito.
 
@@ -143,7 +145,9 @@ Medido el 6 nov con `qwen2.5:3b`: PC con GPU vía Tailscale ≈ **110 tokens/s**
 **En la laptop:**
 1. Tailscale con la **misma cuenta**. `"C:\Program Files\Tailscale\tailscale.exe" status` muestra la IP `100.x` de la PC con GPU.
 2. Probar desde Ubuntu: `curl http://<IP-100.x>:11434/api/tags` (debe listar los modelos).
-3. NyarchAssistant → Ollama Instance → API Endpoint `http://<IP-100.x>:11434`. Para volver a local: `http://localhost:11434`.
+3. Con NyarchAssistant **cerrado**: `bash archy/usar_ollama.sh http://<IP-100.x>:11434` (para volver a esta PC: `bash archy/usar_ollama.sh local`). Prueba la conexión y guarda endpoint y modelo en los ajustes activos **y** en los perfiles. No basta con cambiarlo en Configuración: los perfiles guardan su propia copia y, al cambiar de perfil o al activar el perfil "Archy", puede volver el valor viejo (pasó el 12 nov).
+4. Si la PC con GPU no aparece en `tailscale status` ("offline"), está apagada, suspendida o con Tailscale cerrado; no hay forma de conectarse hasta que vuelva.
+5. Para usar el Ollama de la laptop como respaldo también necesita `OLLAMA_CONTEXT_LENGTH=16384` y estar abierto (icono junto al reloj). Con poca RAM libre (ej. 3 GB de 15 GB en la laptop de Roberto) en CPU será muy lento: mejor `qwen2.5:1.5b` o la PC con GPU.
 
 **Reglas:**
 - **Nunca** abrir el puerto 11434 en el router (port forwarding): Ollama no tiene contraseña y quedaría expuesto a internet.
@@ -211,7 +215,7 @@ ISO/IEC 42001:2023 (gestión de IA), ISO/IEC 23894:2023 (riesgos de IA), ISO/IEC
 |---|---|
 | Jue 5 nov | Planeación, documentación (plan, normas ISO, cronograma) y diseño de identidad (nombre y eslogan) ✅ |
 | Vie 6 nov | Instalar NyarchAssistant + Ollama + qwen2.5:3b en ≥ 2 equipos Linux y probarlo en ≥ 1 equipo Windows con WSL2; leer el wiki de extensiones y hacer una extensión "hola mundo"; crear repo y `config.yaml` |
-| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak ✅ (11 nov); `escaner` ✅ (11 nov); nueva interfaz de Archy ✅ (11 nov, no planeada); `extractor` (movido al vie 13); dataset de prueba etiquetado (60–90 archivos) |
+| 9–13 nov | `guardian` + pruebas de seguridad ✅ (10 nov); permiso Flatpak ✅ (11 nov); `escaner` ✅ (11 nov); nueva interfaz de Archy ✅ (11 nov, no planeada); `extractor` ✅ (12 nov); dataset de prueba etiquetado (60–90 archivos) |
 | Lun 16 nov | Feriado |
 | 17–20 nov | Clasificador (reglas + embeddings) y medición; Qwen para dudosos y `nombrador` PascalCase |
 | 23–27 nov | Herramientas de la extensión, bitácora, prompt del sistema, perfil. **Vie 27: congelar funciones.** |
