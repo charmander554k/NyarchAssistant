@@ -1,0 +1,4 @@
+Apuntes clase 4
+Un firewall filtra el tráfico según reglas.
+La DMZ separa los servidores públicos de la red interna.
+Una VPN cifra la conexión entre dos puntos.

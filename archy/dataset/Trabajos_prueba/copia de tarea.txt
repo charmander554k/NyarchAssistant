@@ -1,0 +1,3 @@
+Similitud coseno entre documentos
+Cada documento se representa como un vector de frecuencias de términos.
+La similitud coseno mide el ángulo entre los vectores: 1 = iguales, 0 = sin palabras en común.

@@ -1,0 +1,3 @@
+Búsqueda no informada vs informada
+No informada: BFS, DFS, costo uniforme. No sabe qué tan lejos está la meta.
+Informada: voraz y A*. Usa una heurística para estimar la distancia a la meta.

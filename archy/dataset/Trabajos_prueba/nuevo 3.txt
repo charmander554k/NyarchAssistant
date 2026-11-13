@@ -1,0 +1,6 @@
+nmap -sV 192.168.1.10
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.9
+80/tcp   open  http    Apache 2.4.52
+3306/tcp open  mysql   MySQL 8.0
+Hallazgo: el puerto de la base de datos no debería estar expuesto.

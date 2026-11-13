@@ -1,0 +1,4 @@
+Stemming vs lematización
+El stemming corta la palabra a su raíz (corriendo -> corr).
+La lematización usa el diccionario (corriendo -> correr).
+Ambos reducen el vocabulario del corpus.

@@ -1,0 +1,4 @@
+fecha,usuario,ip,resultado
+2026-10-01 08:00,admin,10.0.0.5,fallido
+2026-10-01 08:01,admin,10.0.0.5,fallido
+2026-10-01 08:02,admin,10.0.0.5,bloqueado

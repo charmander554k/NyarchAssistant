@@ -1,0 +1,1 @@
+{"descripcion": "laberinto para búsqueda A*", "inicio": [0, 0], "meta": [3, 3], "mapa": ["0010", "0110", "0000", "1100"]}

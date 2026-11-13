@@ -1,0 +1,4 @@
+ip,puerto,servicio,estado
+192.168.1.10,22,ssh,abierto
+192.168.1.10,23,telnet,filtrado
+192.168.1.10,443,https,abierto

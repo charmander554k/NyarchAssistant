@@ -1,0 +1,76 @@
+﻿archivo,materia,tipo,nombre_descriptivo,dificultad,caso,nota
+cifrado.py,Seguridad Informática,Codigo,si,facil,normal,
+a1.py,Seguridad Informática,Codigo,no,media,normal,
+escaner.py,Seguridad Informática,Codigo,no,media,normal,Escáner de puertos tipo nmap
+hashes_contrasenas.py,Seguridad Informática,Codigo,si,facil,normal,
+programa_final(1).py,Seguridad Informática,Codigo,no,media,normal,
+sniff.ipynb,Seguridad Informática,Codigo,no,media,normal,
+Untitled.ipynb,Seguridad Informática,Codigo,no,media,normal,
+practica3 v2.docx,Seguridad Informática,Documentos,no,facil,normal,
+Doc1.docx,Seguridad Informática,Documentos,no,media,normal,
+tarea final FINAL.pdf,Seguridad Informática,Documentos,no,media,normal,
+apuntes.txt,Seguridad Informática,Documentos,no,media,codificacion,Guardado en cp1252 (acentos de Windows)
+resumen_clase5.md,Seguridad Informática,Documentos,no,media,normal,
+nuevo 3.txt,Seguridad Informática,Documentos,no,media,normal,Bitácora de pentest
+datos.csv,Seguridad Informática,Datos,no,media,normal,
+log1.csv,Seguridad Informática,Datos,no,media,normal,Intentos de inicio de sesión (fuerza bruta)
+Libro1.xlsx,Seguridad Informática,Datos,no,media,normal,Matriz de riesgos
+resultados.json,Seguridad Informática,Datos,no,media,normal,
+expo.pptx,Seguridad Informática,Presentaciones,no,facil,normal,
+Presentación1.pptx,Seguridad Informática,Presentaciones,no,media,normal,
+equipo4_final.pptx,Seguridad Informática,Presentaciones,no,media,normal,
+captura_wireshark.png,Seguridad Informática,Otros,si,dificil,pista_en_nombre,Archy no lee imágenes: solo el nombre da la pista
+IMG_20261005.png,_Por revisar,Otros,no,dificil,sin_informacion,Imagen sin pistas: lo correcto es mandarla a revisar
+vdksahdas.py,Minería de Texto,Codigo,no,facil,normal,
+limpieza.py,Minería de Texto,Codigo,no,facil,normal,
+x.py,Minería de Texto,Codigo,no,media,normal,Bolsa de palabras
+sentimiento_v3.py,Minería de Texto,Codigo,si,facil,normal,
+main.py,Minería de Texto,Codigo,no,media,normal,Lematización y entidades con spaCy
+practica_nube.ipynb,Minería de Texto,Codigo,si,facil,normal,
+Untitled1.ipynb,Minería de Texto,Codigo,no,media,normal,
+reporte.docx,Minería de Texto,Documentos,no,facil,normal,
+Documento sin título.docx,Minería de Texto,Documentos,no,media,normal,
+tarea2.pdf,Minería de Texto,Documentos,no,media,normal,
+notas.txt,Minería de Texto,Documentos,no,media,normal,
+README.md,Minería de Texto,Documentos,no,facil,normal,
+copia de tarea.txt,Minería de Texto,Documentos,no,media,normal,
+corpus.csv,Minería de Texto,Datos,si,facil,normal,
+tweets_limpios.csv,Minería de Texto,Datos,si,facil,normal,
+Libro2.xlsx,Minería de Texto,Datos,no,media,normal,Matriz término-documento
+stopwords.json,Minería de Texto,Datos,si,media,normal,
+expo_final.pptx,Minería de Texto,Presentaciones,no,facil,normal,
+Presentación2.pptx,Minería de Texto,Presentaciones,no,media,normal,
+equipo2.pptx,Minería de Texto,Presentaciones,no,media,normal,
+nube_palabras.png,Minería de Texto,Otros,si,dificil,pista_en_nombre,Archy no lee imágenes: solo el nombre da la pista
+grafica.png,_Por revisar,Otros,no,dificil,sin_informacion,Imagen sin pistas: lo correcto es mandarla a revisar
+perceptron.py,Fundamentos de IA,Codigo,si,facil,normal,
+a.py,Fundamentos de IA,Codigo,no,media,normal,
+tarea4.py,Fundamentos de IA,Codigo,no,media,normal,A* con heurística
+juego.py,Fundamentos de IA,Codigo,no,media,normal,Minimax para gato (tic-tac-toe)
+agente_aspiradora.py,Fundamentos de IA,Codigo,si,facil,normal,
+Untitled2.ipynb,Fundamentos de IA,Codigo,no,media,normal,
+knn_practica.ipynb,Fundamentos de IA,Codigo,si,facil,normal,
+Doc2.docx,Fundamentos de IA,Documentos,no,facil,normal,
+ensayo_final.docx,Fundamentos de IA,Documentos,no,media,normal,
+practica5.pdf,Fundamentos de IA,Documentos,no,media,normal,
+apuntes ia.txt,Fundamentos de IA,Documentos,si,facil,normal,
+resumen.md,Fundamentos de IA,Documentos,no,media,normal,
+tarea (2).txt,Fundamentos de IA,Documentos,no,media,normal,
+iris.csv,Fundamentos de IA,Datos,si,dificil,normal,"Dataset clásico de IA, pero sus columnas no tienen palabras clave"
+datos_entrenamiento.csv,_Por revisar,Datos,no,dificil,sin_informacion,Tabla XOR: solo números y un nombre genérico; lo correcto es mandarla a revisar
+Libro3.xlsx,Fundamentos de IA,Datos,no,dificil,normal,Tabla de verdad para el perceptrón
+laberinto.json,Fundamentos de IA,Datos,si,media,normal,
+expo_ia.pptx,Fundamentos de IA,Presentaciones,no,facil,normal,
+Presentación3.pptx,Fundamentos de IA,Presentaciones,no,media,normal,
+equipo1_final.pptx,Fundamentos de IA,Presentaciones,no,media,normal,
+grafo_busqueda.png,Fundamentos de IA,Otros,si,dificil,pista_en_nombre,Archy no lee imágenes: solo el nombre da la pista
+captura.png,_Por revisar,Otros,no,dificil,sin_informacion,Imagen sin pistas: lo correcto es mandarla a revisar
+proyecto_integrador.docx,Seguridad Informática,Documentos,no,dificil,ambiguo,Mezcla Minería de Texto (TF-IDF) con Seguridad (phishing); el objetivo es de seguridad
+clasificador_spam.py,Minería de Texto,Codigo,si,dificil,ambiguo,"Puede parecer de IA (Naive Bayes), pero es clasificación de texto"
+agente_ids.py,Seguridad Informática,Codigo,no,dificil,ambiguo,"Usa la idea de agente (IA), pero es un sistema de detección de intrusos (Seguridad)"
+receta_pastel.txt,_Por revisar,Documentos,si,facil,ajeno,No es de ninguna materia
+horario_semestre.pdf,_Por revisar,Documentos,si,dificil,ajeno,Menciona las tres materias por igual: no pertenece a ninguna
+lista_compras.xlsx,_Por revisar,Datos,si,facil,ajeno,No es de ninguna materia
+perceptron (copia).py,Fundamentos de IA,Codigo,no,media,duplicado,Mismo contenido que perceptron.py (mismo hash): el planificador debe detectarlo
+PRACTICA_RSA.PDF,Seguridad Informática,Documentos,si,media,extension_mayusculas,Extensión en mayúsculas: el nombre final debe quedar en .pdf
+notas_vacias.txt,_Por revisar,Documentos,no,dificil,sin_informacion,Archivo vacío
