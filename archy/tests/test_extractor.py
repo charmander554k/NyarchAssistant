@@ -162,6 +162,20 @@ def test_xlsx(entorno, config):
     assert "alumno | corpus | tfidf" in r.texto
 
 
+def test_xlsx_con_texto_en_linea(entorno, config):
+    # Como lo guardan openpyxl, pandas o LibreOffice: sin sharedStrings.xml.
+    hoja = ('<worksheet><sheetData><row r="1">'
+            '<c r="A1" t="inlineStr"><is><t>entrada</t></is></c>'
+            '<c r="B1" t="inlineStr"><is><t>XOR</t></is></c>'
+            '<c r="C1"><v>1</v></c></row></sheetData></worksheet>')
+    crear_zip(entorno.raiz / "compuertas.xlsx", {
+        "xl/workbook.xml": '<workbook><sheets><sheet name="Compuertas" sheetId="1"/></sheets></workbook>',
+        "xl/worksheets/sheet1.xml": hoja,
+    })
+    r = extraer(entorno.guardian, config, "compuertas.xlsx")
+    assert r.texto == "Hojas: Compuertas\nCeldas: entrada | XOR"
+
+
 def test_opendocument(entorno, config):
     crear_zip(entorno.raiz / "tarea.odt",
               {"content.xml": "<office:text><text:h>Heurísticas</text:h><text:p>Búsqueda A*</text:p></office:text>"})

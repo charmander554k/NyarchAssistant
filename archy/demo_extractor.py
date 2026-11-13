@@ -69,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     args = analizador.parse_args(argv)
 
     carpeta = args.carpeta or carpeta_por_defecto()
+    if carpeta:
+        carpeta = os.path.abspath(os.path.expanduser(carpeta))  # acepta rutas relativas
     if not carpeta:
         print("Indica la carpeta Trabajos, ej.: python demo_extractor.py \"C:\\Users\\yo\\Documents\\Trabajos\"")
         return 2

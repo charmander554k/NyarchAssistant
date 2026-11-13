@@ -77,6 +77,16 @@ Falla, por ejemplo:
 
 Por eso el clasificador real agrega contenido, embeddings y Qwen para los casos dudosos. Esta cifra es la referencia para medir si cada mejora ayuda.
 
+## Clasificador (13 nov 2026)
+
+Con el clasificador de Archy (reglas + contenido, palabras completas, pesos y vocabulario ampliado con temas del curso): **95 % (71/75)** y **0 errores graves** (ningún archivo se movería con confianza a una materia equivocada). Se mide con:
+
+```bash
+python dataset/medir_clasificador.py --detalle
+```
+
+Nota: el 79 % de arriba es con el vocabulario original de `config.yaml`. Como `verificar_dataset.py` usa el vocabulario actual, hoy muestra 92 % para la misma línea base. Y como el dataset y el vocabulario los hizo el mismo equipo, estas cifras son optimistas: hace falta medir con trabajos reales.
+
 ## Pendiente
 
 Agregar 10 a 15 trabajos **reales** del equipo, sin datos personales, para medir también con archivos que no fueron escritos pensando en Archy.

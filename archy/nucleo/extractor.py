@@ -222,14 +222,23 @@ def _leer_xlsx(ruta: Path, limite: int) -> tuple[str, bool]:
             xml, _ = _leer_parte_zip(zf, "xl/workbook.xml")
             hojas = [html.unescape(h) for h in re.findall(r'<sheet\b[^>]*\bname="([^"]*)"', xml)]
         textos, cortado = [], False
-        if "xl/sharedStrings.xml" in nombres:
+        patron_t = r"<t(?:\s[^>]*)?>([^<]*)</t>"
+        if "xl/sharedStrings.xml" in nombres:   # así guarda Excel el texto de las celdas
             xml, cortado = _leer_parte_zip(zf, "xl/sharedStrings.xml")
-            textos = [html.unescape(t) for t in re.findall(r"<t(?:\s[^>]*)?>([^<]*)</t>", xml)]
+            textos = [html.unescape(t) for t in re.findall(patron_t, xml)]
+        # Otros programas (LibreOffice al exportar, openpyxl, pandas...) guardan el
+        # texto dentro de la hoja ("inlineStr"). Se lee la primera hoja.
+        hojas_xml = sorted((n for n in nombres if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)), key=_numero)
+        if hojas_xml:
+            xml, parte_cortada = _leer_parte_zip(zf, hojas_xml[0])
+            en_linea = re.findall(r"<is>\s*(?:<r>.*?)?" + patron_t, xml)
+            textos += [html.unescape(t) for t in en_linea]
+            cortado = cortado or parte_cortada
     lineas = []
     if hojas:
         lineas.append("Hojas: " + ", ".join(hojas))
     if textos:
-        lineas.append("Textos: " + " | ".join(t for t in textos if t.strip()))
+        lineas.append("Celdas: " + " | ".join(t for t in textos if t.strip()))
     return "\n".join(lineas), cortado
 
 

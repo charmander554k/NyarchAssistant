@@ -52,23 +52,42 @@ materias:
     descripcion: >-
       Seguridad de la información: criptografía, redes, firewalls, análisis de
       vulnerabilidades, escaneo de puertos, hashing, autenticación y malware.
-    palabras_clave: [cripto, cifrado, firewall, nmap, hash, vulnerabilidad,
-                     malware, puerto, ssl, tls, rsa, aes, ataque, phishing,
-                     wireshark, contrasena, seguridad]
+    # Vocabulario de los temas del curso (ampliado el 13 nov). Se comparan
+    # palabras completas, sin acentos y sin importar plurales.
+    palabras_clave: [seguridad, cripto, criptografia, cifrado, cifrar, descifrar,
+                     rsa, aes, des, firma digital, certificado, hash, sha256,
+                     owasp, inyeccion sql, xss, csrf, vulnerabilidad, cve, exploit,
+                     pentest, escaneo, nmap, wireshark, scapy, paquete, trafico,
+                     sniffer, firewall, iptables, dmz, vpn, ids, intrusion, intruso,
+                     autenticacion, mfa, contrasena, credencial, fuerza bruta,
+                     phishing, ingenieria social, malware, ransomware, troyano,
+                     riesgo, amenaza, auditoria, wpa2, wpa3, wifi, ssl, tls,
+                     puerto, ataque, cryptography, fernet]
   - nombre: "Minería de Texto"
     descripcion: >-
       Procesamiento de texto: limpieza, tokenización, stopwords, bolsa de
       palabras, TF-IDF, análisis de sentimiento y clasificación de documentos.
-    palabras_clave: [nltk, tfidf, tf-idf, corpus, token, stopwords, stemming,
-                     lematizacion, sentimiento, spacy, bolsa, ngrama, texto,
-                     wordcloud, mineria]
+    palabras_clave: [mineria, texto, nltk, spacy, textblob, gensim, tfidf, tf-idf,
+                     corpus, token, tokenizacion, stopwords, stemming, lematizacion,
+                     lema, ngrama, n-grama, bigrama, trigrama, bolsa de palabras,
+                     countvectorizer, frecuencia de termino, zipf, vocabulario,
+                     similitud coseno, sentimiento, polaridad, opinion, resena,
+                     tweet, procesamiento de lenguaje natural, pln, nlp, lda,
+                     modelado de temas, wordcloud, nube de palabras, entidades,
+                     expresion regular, matriz termino documento]
   - nombre: "Fundamentos de IA"
     descripcion: >-
       Inteligencia artificial: agentes, búsqueda, heurísticas, lógica,
       perceptrón, redes neuronales y aprendizaje automático básico.
-    palabras_clave: [perceptron, agente, heuristica, busqueda, astar, bfs, dfs,
-                     neurona, red neuronal, logica difusa, minimax, regresion,
-                     knn, arbol de decision, inteligencia artificial]
+    palabras_clave: [inteligencia artificial, perceptron, neurona, red neuronal,
+                     retropropagacion, descenso de gradiente, funcion de activacion,
+                     mlp, xor, agente, peas, racional, busqueda, bfs, dfs, anchura,
+                     profundidad, costo uniforme, astar, heuristica, admisible, voraz,
+                     hill climbing, busqueda local, reinas, minimax, alfa beta,
+                     logica difusa, funcion de pertenencia, sistema experto, turing,
+                     dartmouth, aprendizaje automatico, knn, vecinos, arbol de decision,
+                     entropia, ganancia de informacion, regresion, iris, laberinto,
+                     grafo, espacio de estados, etica]
 
 # Rutas que se suman a la lista negra del guardián.
 # Solo sirve para AGREGAR: la lista negra base está en el código y no se puede quitar.

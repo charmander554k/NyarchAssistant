@@ -27,3 +27,10 @@ def test_demo_texto_completo(entorno, capsys):
 def test_demo_carpeta_invalida(capsys, zona):
     assert demo_extractor.main([str(zona / "no_existe"), "--config", CONFIG_REAL]) == 1
     assert "no existe" in capsys.readouterr().out
+
+
+def test_demo_acepta_ruta_relativa(entorno, capsys, monkeypatch):
+    (entorno.raiz / "notas.txt").write_text("hash", encoding="utf-8")
+    monkeypatch.chdir(entorno.raiz.parent)
+    assert demo_extractor.main([entorno.raiz.name, "--config", CONFIG_REAL]) == 0
+    assert "notas.txt" in capsys.readouterr().out
