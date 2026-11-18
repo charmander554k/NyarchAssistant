@@ -41,10 +41,10 @@ def pct(a: int, b: int) -> str:
     return f"{a}/{b} ({a / b:.0%})" if b else "—"
 
 
-def medir(config, embeber=None) -> dict:
+def medir(config, embeber=None, consultar=None) -> dict:
     """Clasifica todo el dataset y devuelve los resultados por archivo."""
     guardian = Guardian(CARPETA)
-    clasificador = Clasificador(config, embeber=embeber)
+    clasificador = Clasificador(config, embeber=embeber, consultar=consultar)
     vocabulario = {p for m in config.materias for p in m.palabras_clave}
     extracciones = {a.nombre: extraer(guardian, config, a.ruta) for a in escanear(guardian, config).archivos}
     resultados = []
@@ -52,7 +52,7 @@ def medir(config, embeber=None) -> dict:
         e = extracciones.get(fila["archivo"])
         c = clasificador.clasificar(fila["archivo"], e)
         base, _ = linea_base(fila["archivo"], e.texto if e else "", config)
-        propuesta = proponer_nombre(fila["archivo"], e, palabras_clave=vocabulario)
+        propuesta = proponer_nombre(fila["archivo"], e, sugerencia=c.nombre_sugerido, palabras_clave=vocabulario)
         resultados.append({"fila": fila, "c": c, "base": base, "nombre": propuesta})
     return {"resultados": resultados}
 
@@ -61,25 +61,36 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     analizador = argparse.ArgumentParser(description="Mide el clasificador de Archy con el dataset.")
-    analizador.add_argument("--ollama", metavar="URL", help="usar embeddings de este Ollama (ej. http://localhost:11434)")
+    analizador.add_argument("--ollama", metavar="URL", help="Ollama a usar (ej. http://localhost:11434); activa los embeddings")
     analizador.add_argument("--modelo-embeddings", default="paraphrase-multilingual")
+    analizador.add_argument("--sin-embeddings", action="store_true", help="con --ollama, no usar embeddings")
+    analizador.add_argument("--qwen", action="store_true", help="con --ollama, consultar a Qwen en los dudosos")
+    analizador.add_argument("--modelo-qwen", default="qwen2.5:3b")
     analizador.add_argument("--detalle", action="store_true", help="listar cada error")
     args = analizador.parse_args(argv)
 
     config = cargar_config(AQUI.parent / "config.yaml")
-    embeber = None
+    embeber = consultar = None
+    if (args.qwen or args.sin_embeddings) and not args.ollama:
+        print("--qwen y --sin-embeddings necesitan --ollama URL")
+        return 2
     if args.ollama:
-        from nucleo.ollama import disponible, embebedor
-        if not disponible(args.ollama, args.modelo_embeddings):
-            print(f"Ollama en {args.ollama} no responde o no tiene '{args.modelo_embeddings}'.")
-            print(f"Descárgalo en esa PC con: ollama pull {args.modelo_embeddings}")
-            return 1
-        embeber = embebedor(args.ollama, args.modelo_embeddings)
+        from nucleo.ollama import chat_json, disponible, embebedor
+        necesarios = ([] if args.sin_embeddings else [args.modelo_embeddings]) + ([args.modelo_qwen] if args.qwen else [])
+        for modelo in necesarios:
+            if not disponible(args.ollama, modelo):
+                print(f"Ollama en {args.ollama} no responde o no tiene '{modelo}'.")
+                print(f"Descárgalo en esa PC con: ollama pull {modelo}")
+                return 1
+        if not args.sin_embeddings:
+            embeber = embebedor(args.ollama, args.modelo_embeddings)
+        if args.qwen:
+            consultar = chat_json(args.ollama, args.modelo_qwen)
 
     inicio = time.perf_counter()
-    resultados = medir(config, embeber)["resultados"]
+    resultados = medir(config, embeber, consultar)["resultados"]
     segundos = time.perf_counter() - inicio
-    etapa = "reglas + contenido + embeddings" if embeber else "reglas + contenido"
+    etapa = " + ".join(["reglas + contenido"] + (["embeddings"] if embeber else []) + (["Qwen"] if consultar else []))
 
     total = len(resultados)
     bien = sum(r["c"].materia == r["fila"]["materia"] for r in resultados)
@@ -104,8 +115,12 @@ def main(argv: list[str] | None = None) -> int:
     decisiones = Counter(r["c"].decision for r in resultados)
     graves = [r for r in resultados if r["c"].decision == MOVER and r["c"].materia != r["fila"]["materia"]]
     print(f"  Mover con confianza (>= {config.umbrales.alto}): {decisiones['mover']}"
-          f" · con advertencia, irían a Qwen: {decisiones['advertir']}"
+          f" · con advertencia: {decisiones['advertir']}"
           f" · a {config.carpeta_dudas}: {decisiones['revisar']}")
+    if consultar:
+        consultados = [r for r in resultados if r["c"].consulto_qwen]
+        acertados = sum(r["c"].materia == r["fila"]["materia"] for r in consultados)
+        print(f"  Consultas a Qwen: {len(consultados)} (acertó después de consultar: {pct(acertados, len(consultados))})")
     print(f"  Errores graves (se movería con confianza a la materia equivocada): {len(graves)}")
     for r in graves:
         print(f"    ✗ {r['fila']['archivo']}: esperado {r['fila']['materia']}, propuso {r['c'].materia}")

@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from typing import Sequence
 
-__all__ = ["ErrorOllama", "embebedor", "disponible"]
+__all__ = ["ErrorOllama", "embebedor", "disponible", "chat_json"]
 
 
 class ErrorOllama(Exception):
@@ -41,7 +41,7 @@ def disponible(endpoint: str, modelo: str, timeout: float = 5) -> bool:
     return any(m == modelo or m.split(":")[0] == modelo for m in modelos)
 
 
-def embebedor(endpoint: str, modelo: str = "paraphrase-multilingual", timeout: float = 60):
+def embebedor(endpoint: str, modelo: str = "paraphrase-multilingual", timeout: float = 180):
     """Devuelve una función textos -> vectores que usa /api/embed de Ollama."""
 
     def embeber(textos: Sequence[str]) -> list[list[float]]:
@@ -52,3 +52,26 @@ def embebedor(endpoint: str, modelo: str = "paraphrase-multilingual", timeout: f
         return vectores
 
     return embeber
+
+
+def chat_json(endpoint: str, modelo: str = "qwen2.5:3b", timeout: float = 120, contexto: int = 4096):
+    """Devuelve una función mensajes -> dict que pide a Ollama una respuesta en JSON.
+
+    Usa temperatura 0 (respuestas estables) y un contexto pequeño, porque el
+    mensaje que arma el clasificador es corto (no pasa por NyarchAssistant).
+    """
+
+    def consultar(mensajes: list[dict]) -> dict:
+        datos = {"model": modelo, "messages": mensajes, "format": "json", "stream": False,
+                 "options": {"temperature": 0, "num_ctx": contexto}}
+        respuesta = _post(endpoint, "/api/chat", datos, timeout)
+        contenido = (respuesta.get("message") or {}).get("content", "")
+        try:
+            resultado = json.loads(contenido)
+        except ValueError as error:
+            raise ErrorOllama(f"Qwen no devolvió JSON: {contenido[:200]}") from error
+        if not isinstance(resultado, dict):
+            raise ErrorOllama(f"Qwen devolvió un JSON que no es objeto: {contenido[:200]}")
+        return resultado
+
+    return consultar
