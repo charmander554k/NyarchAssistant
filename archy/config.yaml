@@ -34,9 +34,10 @@ modelo:
   nombre: "qwen2.5:3b"          # "qwen2.5:1.5b" en PCs lentas
   contexto_minimo: 16384        # con menos, NyarchAssistant responde vacío
 
-# Modelo de embeddings local para la similitud semántica.
+# Modelo de embeddings de Ollama para la similitud semántica (solo si las
+# reglas dudan). Descargar con: ollama pull paraphrase-multilingual
 embeddings:
-  modelo: "paraphrase-multilingual-MiniLM-L12-v2"
+  modelo: "paraphrase-multilingual"
 
 # Umbrales de confianza del clasificador.
 umbrales:

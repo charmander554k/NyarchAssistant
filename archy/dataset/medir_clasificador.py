@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     analizador = argparse.ArgumentParser(description="Mide el clasificador de Archy con el dataset.")
     analizador.add_argument("--ollama", metavar="URL", help="Ollama a usar (ej. http://localhost:11434); activa los embeddings")
-    analizador.add_argument("--modelo-embeddings", default="paraphrase-multilingual")
+    analizador.add_argument("--modelo-embeddings", help="por defecto, el de config.yaml")
     analizador.add_argument("--sin-embeddings", action="store_true", help="con --ollama, no usar embeddings")
     analizador.add_argument("--qwen", action="store_true", help="con --ollama, consultar a Qwen en los dudosos")
     analizador.add_argument("--modelo-qwen", default="qwen2.5:3b")
@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     args = analizador.parse_args(argv)
 
     config = cargar_config(AQUI.parent / "config.yaml")
+    args.modelo_embeddings = args.modelo_embeddings or config.modelo_embeddings
     embeber = consultar = None
     if (args.qwen or args.sin_embeddings) and not args.ollama:
         print("--qwen y --sin-embeddings necesitan --ollama URL")
