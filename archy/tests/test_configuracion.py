@@ -100,3 +100,24 @@ def test_yaml_invalido(zona):
     archivo.write_text("modo: [sin cerrar", encoding="utf-8")
     with pytest.raises(ConfigInvalida, match="YAML"):
         cargar_config(archivo)
+
+
+def test_modo_desarrollo_apagado_en_el_repo():
+    assert cargar_config(CONFIG_REAL).modo_desarrollo is False
+
+
+def test_modo_desarrollo_es_opcional(base):
+    # Un config.yaml instalado antes de que existiera la opción sigue siendo válido.
+    del base["modo_desarrollo"]
+    assert config_desde_dict(base).modo_desarrollo is False
+
+
+def test_modo_desarrollo_activado(base):
+    base["modo_desarrollo"] = True
+    assert config_desde_dict(base).modo_desarrollo is True
+
+
+@pytest.mark.parametrize("valor", ["si", 1, None])
+def test_modo_desarrollo_debe_ser_booleano(base, valor):
+    base["modo_desarrollo"] = valor
+    assert any("modo_desarrollo" in e for e in errores_de(base))

@@ -5,11 +5,14 @@
 #   Linux:  bash archy/instalar.sh                      (usa ~/Documentos/Trabajos)
 #           bash archy/instalar.sh /ruta/a/Trabajos
 #   WSL:    bash archy/instalar.sh /mnt/c/Users/<usuario>/Documents/Trabajos
+#   Equipo: agregar --desarrollo activa la herramienta medir_clasificador y copia
+#           dataset/etiquetas.csv (sin la opción, se desactiva).
 #
 # Qué hace:
 #   1. Crea la carpeta Trabajos si no existe.
 #   2. Copia el núcleo, el logo y config.yaml a ~/.var/app/<app>/data/archy/
-#      (si ya había un config.yaml, lo conserva y solo actualiza carpeta_raiz).
+#      (pone carpeta_raiz; si el config.yaml anterior tenía otros cambios, lo
+#      guarda en config.yaml.anterior-<fecha>).
 #   3. Copia la extensión (organizador.py) a la carpeta de extensiones.
 #   4. Restringe el Flatpak: quita el acceso a toda la carpeta personal y la
 #      salida del sandbox, y da acceso solo a Trabajos.
@@ -31,7 +34,14 @@ if ! flatpak info "$APPID" >/dev/null 2>&1; then
   exit 1
 fi
 
-TRABAJOS="${1:-}"
+DESARROLLO=false
+TRABAJOS=""
+for arg in "$@"; do
+  case "$arg" in
+    --desarrollo) DESARROLLO=true ;;
+    *) TRABAJOS="$arg" ;;
+  esac
+done
 if [ -z "$TRABAJOS" ]; then
   if es_wsl; then
     echo "ERROR: en WSL indica la carpeta, ej.:" >&2
@@ -56,21 +66,37 @@ cp -r "$AQUI/nucleo" "$DATA/nucleo"
 find "$DATA/nucleo" -name "__pycache__" -type d -prune -exec rm -rf {} +
 cp "$AQUI/assets/logo.png" "$AQUI/assets/perfil.png" "$DATA/assets/"
 
-if [ -f "$DATA/config.yaml" ]; then
-  echo "==> Se conserva el config.yaml que ya existía"
-else
-  cp "$AQUI/config.yaml" "$DATA/config.yaml"
+# config.yaml: se instala el del repositorio (vocabulario y modelos al día).
+# Si el instalado tenía otros cambios además de carpeta_raiz y modo_desarrollo,
+# se guarda una copia con fecha (config.yaml.anterior-AAAAMMDD-HHMMSS).
+sin_lineas_locales() { tr -d '\r' < "$1" | grep -vE '^(carpeta_raiz|modo_desarrollo):'; }
+if [ -f "$DATA/config.yaml" ] && \
+   ! diff -q <(sin_lineas_locales "$DATA/config.yaml") <(sin_lineas_locales "$AQUI/config.yaml") >/dev/null; then
+  RESPALDO="$DATA/config.yaml.anterior-$(date +%Y%m%d-%H%M%S)"
+  cp "$DATA/config.yaml" "$RESPALDO"
+  echo "==> El config.yaml instalado era distinto: se guardó en $(basename "$RESPALDO")"
 fi
-# Actualiza solo la línea carpeta_raiz.
-python3 - "$DATA/config.yaml" "$TRABAJOS" <<'PY'
+tr -d '\r' < "$AQUI/config.yaml" > "$DATA/config.yaml"
+# Actualiza solo las líneas carpeta_raiz y modo_desarrollo.
+python3 - "$DATA/config.yaml" "$TRABAJOS" "$DESARROLLO" <<'PY'
 import re, sys
-ruta, trabajos = sys.argv[1], sys.argv[2]
+ruta, trabajos, desarrollo = sys.argv[1], sys.argv[2], sys.argv[3]
 texto = open(ruta, encoding="utf-8").read()
 nuevo, n = re.subn(r'^carpeta_raiz:.*$', 'carpeta_raiz: "%s"' % trabajos.replace('"', '\\"'), texto, flags=re.M)
 if n != 1:
     sys.exit("ERROR: no se encontró 'carpeta_raiz' en config.yaml")
+nuevo, n = re.subn(r'^modo_desarrollo:.*$', 'modo_desarrollo: ' + desarrollo, nuevo, flags=re.M)
+if n == 0:
+    nuevo = nuevo.rstrip("\n") + "\n\nmodo_desarrollo: " + desarrollo + "\n"
 open(ruta, "w", encoding="utf-8").write(nuevo)
 PY
+if [ "$DESARROLLO" = true ]; then
+  echo "==> Modo desarrollo: se activa medir_clasificador y se copian las etiquetas"
+  mkdir -p "$DATA/dataset"
+  cp "$AQUI/dataset/etiquetas.csv" "$DATA/dataset/etiquetas.csv"
+else
+  rm -rf "$DATA/dataset"
+fi
 
 echo "==> Instalando la extensión en $EXT"
 cp "$AQUI/organizador.py" "$EXT/organizador.py"

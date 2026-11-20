@@ -22,6 +22,9 @@ _CLAVES = {
     "modelo", "embeddings", "umbrales", "caracteres_a_leer", "materias",
     "lista_negra_extra",
 }
+# Claves opcionales (si faltan, se usa el valor por defecto). Así un config.yaml
+# ya instalado sigue siendo válido cuando se agrega una opción nueva.
+_OPCIONALES = {"modo_desarrollo": False}
 
 
 class ConfigInvalida(Exception):
@@ -62,6 +65,7 @@ class Config:
     caracteres_a_leer: int
     materias: tuple[Materia, ...]
     lista_negra_extra: tuple[str, ...]
+    modo_desarrollo: bool = False   # activa herramientas de medición (no son del producto)
 
     def tipo_de(self, extension: str) -> str:
         """Tipo (subcarpeta) que corresponde a una extensión, ej. '.py' -> 'Codigo'."""
@@ -112,7 +116,7 @@ def config_desde_dict(datos: Any) -> Config:
         raise ConfigInvalida(["el archivo debe contener pares clave: valor"])
 
     errores: list[str] = []
-    desconocidas = sorted(set(datos) - _CLAVES)
+    desconocidas = sorted(set(datos) - _CLAVES - set(_OPCIONALES))
     if desconocidas:
         errores.append(f"claves desconocidas (¿error de escritura?): {', '.join(desconocidas)}")
     faltantes = sorted(_CLAVES - set(datos))
@@ -243,6 +247,10 @@ def config_desde_dict(datos: Any) -> Config:
         errores.append("lista_negra_extra debe ser una lista de rutas (o [])")
         extra = []
 
+    desarrollo = datos.get("modo_desarrollo", _OPCIONALES["modo_desarrollo"])
+    if not isinstance(desarrollo, bool):
+        errores.append("modo_desarrollo debe ser true o false")
+
     if errores:
         raise ConfigInvalida(errores)
 
@@ -262,4 +270,5 @@ def config_desde_dict(datos: Any) -> Config:
         caracteres_a_leer=caracteres,
         materias=tuple(materias),
         lista_negra_extra=tuple(r.strip() for r in extra),
+        modo_desarrollo=desarrollo,
     )

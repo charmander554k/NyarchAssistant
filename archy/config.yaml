@@ -90,6 +90,10 @@ materias:
                      entropia, ganancia de informacion, regresion, iris, laberinto,
                      grafo, espacio de estados, etica]
 
+# Solo para el equipo: activa la herramienta "medir_clasificador", que compara
+# las propuestas con dataset/etiquetas.csv. No forma parte del producto.
+modo_desarrollo: false
+
 # Rutas que se suman a la lista negra del guardián.
 # Solo sirve para AGREGAR: la lista negra base está en el código y no se puede quitar.
 lista_negra_extra: []
