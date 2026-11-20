@@ -33,7 +33,7 @@ __all__ = [
 
 TEXTO_DECISION = {MOVER: "se propone mover", ADVERTIR: "se propone con advertencia",
                   REVISAR: "va a _Por revisar"}
-MAX_EN_RESUMEN = 8        # archivos que se nombran en el resumen para el modelo
+MAX_EN_RESUMEN = 5        # archivos que se nombran en el resumen para el modelo
 AVISO_MODELO = "el modelo no respondió"
 
 Progreso = Callable[[int, int], None]
@@ -120,7 +120,7 @@ def resumen_clasificacion(filas: list[FilaReporte], config: Config, otros: int =
     por_materia = Counter(f.materia for f in filas)
     lineas = [
         f"Se clasificaron {_plural(len(filas), 'archivo', 'archivos')} sin organizar "
-        "(modo simulación: no se movió ni renombró nada).",
+        "(simulación: no se movió ni renombró nada; el estudiante ya ve la tabla).",
         f"Decisiones: {decisiones[MOVER]} se proponen mover, {decisiones[ADVERTIR]} con advertencia, "
         f"{decisiones[REVISAR]} a {config.carpeta_dudas}.",
         "Por materia: " + ", ".join(f"{m}: {n}" for m, n in por_materia.most_common()) + ".",
@@ -129,20 +129,23 @@ def resumen_clasificacion(filas: list[FilaReporte], config: Config, otros: int =
     ]
     dudosos = [f for f in filas if f.decision != MOVER][:MAX_EN_RESUMEN]
     if dudosos:
-        lineas.append("Archivos que el estudiante debe revisar: " + "; ".join(
+        lineas.append("Algunos con duda: " + "; ".join(
             f"{f.nombre} ({f.materia}, {f.confianza:.2f})" for f in dudosos) + ".")
     if otros:
         lineas.append(f"Además hay {_plural(otros, 'archivo ya organizado', 'archivos ya organizados')} que no se clasificaron.")
     if nota:
         lineas.append(nota)
-    lineas.append("La tabla completa ya se muestra al estudiante en el chat: no la repitas, "
-                  "resume en 2 o 3 frases y ofrece explicar un archivo con ver_archivo.")
     return "\n".join(lineas)
 
 
 def _normalizar(texto: str) -> str:
     sin_acentos = unicodedata.normalize("NFKD", texto.strip().casefold())
     return "".join(c for c in sin_acentos if not unicodedata.combining(c)).replace("\\", "/")
+
+
+def _compacto(texto: str) -> str:
+    """Sin espacios, guiones ni guiones bajos: 'tarea3 final FINAL' -> 'tarea3finalfinal'."""
+    return "".join(c for c in _normalizar(texto) if c not in " _-")
 
 
 def buscar_archivo(archivos: Iterable[ArchivoEscaneado], consulta: str
@@ -160,6 +163,8 @@ def buscar_archivo(archivos: Iterable[ArchivoEscaneado], consulta: str
         lambda a: buscado in (_normalizar(a.ruta_relativa), _normalizar(a.nombre)),
         lambda a: _normalizar(Path(a.nombre).stem) == buscado,
         lambda a: buscado in _normalizar(a.ruta_relativa),
+        lambda a: _compacto(consulta) in (_compacto(a.nombre), _compacto(Path(a.nombre).stem)),
+        lambda a: _compacto(consulta) in _compacto(a.ruta_relativa),
     ):
         encontrados = [a for a in archivos if criterio(a)]
         if len(encontrados) == 1:
@@ -261,6 +266,5 @@ def resumen_medicion(m: Medicion, etapas: str, meta: float = 0.85) -> str:
     ]
     if m.faltantes:
         lineas.append(f"Faltan {len(m.faltantes)} archivos etiquetados en Trabajos.")
-    lineas.append("Advertencia: el dataset lo escribió el mismo equipo, así que las cifras son optimistas. "
-                  "La tabla completa ya se muestra en el chat: no la repitas.")
+    lineas.append("Advertencia: el dataset lo escribió el mismo equipo, así que las cifras son optimistas.")
     return "\n".join(lineas)

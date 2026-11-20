@@ -100,6 +100,11 @@ fi
 
 echo "==> Instalando la extensión en $EXT"
 cp "$AQUI/organizador.py" "$EXT/organizador.py"
+# La extensión de prueba del 6 nov agrega un prompt ("usa la herramienta saludar") que confunde a Qwen.
+if [ -f "$EXT/hola_archy.py" ]; then
+  rm -f "$EXT/hola_archy.py"
+  echo "==> Se quitó la extensión de prueba hola_archy.py (sigue en el repositorio)"
+fi
 cp "$AQUI/perfil_archy.py" "$DATA/perfil_archy.py"
 
 echo "==> Restringiendo permisos del Flatpak (solo Trabajos)"

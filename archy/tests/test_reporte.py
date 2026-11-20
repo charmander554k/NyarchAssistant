@@ -108,7 +108,8 @@ def test_resumen_es_corto_y_no_pide_repetir_la_tabla():
     assert "Consultas a Qwen: 1" in texto
     assert "duda.py" in texto and "a0.py" not in texto     # solo se nombran los dudosos
     assert "4 archivos ya organizados" in texto
-    assert "no la repitas" in texto
+    # Solo datos: Qwen 3B copiaba al chat las instrucciones que venían en el resumen.
+    assert "repitas" not in texto.lower() and "ver_archivo" not in texto
     assert len(texto) < 1200
 
 
@@ -125,6 +126,7 @@ ARCHIVOS = [SimpleNamespace(nombre=n, ruta_relativa=r) for n, r in [
     ("Práctica RSA.py", "Seguridad Informática/Codigo/Práctica RSA.py"),
     ("Doc1.docx", "Minería de Texto/Documentos/Doc1.docx"),
     ("expo.pptx", "expo.pptx"),
+    ("tarea3 final FINAL.txt", "tarea3 final FINAL.txt"),
 ]]
 
 
@@ -136,6 +138,8 @@ ARCHIVOS = [SimpleNamespace(nombre=n, ruta_relativa=r) for n, r in [
     ("practica3", "practica3 v2.docx"),                                  # parte del nombre
     ("Minería de Texto/Documentos/Doc1.docx", "Minería de Texto/Documentos/Doc1.docx"),
     ("Mineria de Texto\\Documentos\\Doc1.docx", "Minería de Texto/Documentos/Doc1.docx"),
+    ("tarea3finalfinal", "tarea3 final FINAL.txt"),                     # sin espacios
+    ("tarea3_final_final.txt", "tarea3 final FINAL.txt"),
 ])
 def test_busca_por_nombre_o_ruta(consulta, esperado):
     archivo, candidatos = buscar_archivo(ARCHIVOS, consulta)

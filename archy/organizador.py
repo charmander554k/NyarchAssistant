@@ -5,12 +5,14 @@ Por ahora aporta:
   ocupa el lugar del avatar animado (Arch-chan sigue instalada; solo se elige
   "Archy" en Configuración -> Avatar);
 - el tema de colores de Archy (se puede apagar en los ajustes de la extensión);
-- herramientas de solo lectura para el chat: clasificar_carpeta, ver_archivo y,
-  en modo desarrollo, medir_clasificador. Cada una muestra su tabla en el chat
-  y al modelo solo le pasa un resumen corto. Ninguna mueve ni renombra nada.
+- herramientas del chat: proponer_plan, ver_archivo, deshacer, historial y,
+  en modo desarrollo, medir_clasificador. Cada una muestra una tarjeta en el
+  chat y al modelo solo le pasa un resumen corto.
 
-Faltan proponer_plan, aplicar_plan, deshacer e historial (planificador,
-ejecutor y bitácora).
+El modelo NO puede mover archivos: el plan se aprueba, edita y aplica con los
+botones de la tarjeta (con confirmación), y deshacer también es un botón.
+Por defecto todo es simulación; para mover de verdad se activa "Modo real"
+en Configuración -> Extensiones -> Archy.
 
 Instalación: ejecutar `archy/instalar.sh`. Copia este archivo a la carpeta de
 extensiones y el núcleo, config.yaml y el logo a
@@ -42,6 +44,8 @@ if ARCHY_DIR not in sys.path:
 LOGO = os.path.join(ARCHY_DIR, "assets", "logo.png")
 CONFIG = os.path.join(ARCHY_DIR, "config.yaml")
 ETIQUETAS = os.path.join(ARCHY_DIR, "dataset", "etiquetas.csv")
+# Bitácora fuera de Trabajos: solo rutas y metadatos, nunca contenido.
+BITACORA = os.path.join(ARCHY_DIR, "bitacora.sqlite3")
 OLLAMA_POR_DEFECTO = "http://localhost:11434"
 
 PALETA = {
@@ -214,6 +218,7 @@ class PanelArchy(AvatarHandler):
     def create_gtk_widget(self) -> Gtk.Widget:
         _poner_css("panel", CSS_PANEL)
         self.stop_request = False
+        PanelArchy._activo = self      # las tarjetas lo refrescan después de mover o deshacer
 
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                         hexpand=True, vexpand=True)
@@ -531,57 +536,318 @@ def _resumen_decisiones(filas) -> Gtk.Box:
     return caja
 
 
-def _fila_archivo(f) -> Adw.ActionRow:
-    from nucleo.reporte import TEXTO_DECISION
-    partes = []
-    if f.renombrar:
-        partes.append(f"→ {f.nombre_propuesto}")
-    partes.append(f"{NOMBRE_TIPO.get(f.tipo, f.tipo)} · {TEXTO_DECISION[f.decision]}")
-    partes.append(f.motivo)
-    if f.aviso:
-        partes.append(f"Aviso: {f.aviso}")
-    fila = _fila(f.nombre, "\n".join(partes), ICONOS_TIPO.get(f.tipo, ICONO_OTROS),
-                 _pill(f"{f.confianza:.2f}", CLASE_DECISION[f.decision]))
-    fila.set_tooltip_text(f.ruta_relativa)
-    return fila
+def _confirmar(widget: Gtk.Widget, titulo: str, cuerpo: str, boton: str, al_aceptar) -> None:
+    """Diálogo de confirmación (control humano antes de mover o deshacer)."""
+    if hasattr(Adw, "AlertDialog"):
+        dialogo = Adw.AlertDialog(heading=titulo, body=cuerpo)
+    else:
+        dialogo = Adw.MessageDialog(transient_for=widget.get_root(), heading=titulo, body=cuerpo)
+    dialogo.add_response("cancelar", _("Cancelar"))
+    dialogo.add_response("aceptar", boton)
+    dialogo.set_response_appearance("aceptar", Adw.ResponseAppearance.SUGGESTED)
+    dialogo.set_default_response("cancelar")
+    dialogo.set_close_response("cancelar")
+    dialogo.connect("response", lambda _d, respuesta: al_aceptar() if respuesta == "aceptar" else None)
+    if hasattr(Adw, "AlertDialog"):
+        dialogo.present(widget)
+    else:
+        dialogo.present()
 
 
-def _widgets_clasificacion(filas, materias, carpeta_dudas, notas, otros) -> list:
-    widgets = []
-    if not filas:
-        texto = _("No hay archivos sin organizar en Trabajos.")
-        if otros:
-            texto += " " + _plural(otros, "archivo ya está organizado.", "archivos ya están organizados.")
-        return _widgets_mensaje(texto)
-    resumen = Gtk.Label(label=f"{_plural(len(filas), 'archivo sin organizar', 'archivos sin organizar')} · "
-                              f"modo simulación: no se movió nada", xalign=0, wrap=True)
-    resumen.add_css_class("dim-label")
-    widgets += [resumen, _resumen_decisiones(filas)]
-    widgets += [_aviso(n) for n in notas]
+def _actualizar_panel() -> None:
+    panel = getattr(PanelArchy, "_activo", None)
+    if panel is not None and not panel.stop_request:
+        GLib.idle_add(panel.actualizar)
 
+
+ICONO_ESTADO = {"movido": "emblem-default-symbolic", "simulado": "view-reveal-symbolic",
+                "omitido": "action-unavailable-symbolic", "error": "dialog-warning-symbolic"}
+
+
+def _widget_resultados(resultados, simular: bool, deshaciendo: bool = False) -> Gtk.Widget:
+    caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    hechos = sum(r.estado in ("movido", "simulado") for r in resultados)
+    omitidos = sum(r.estado == "omitido" for r in resultados)
+    errores = sum(r.estado == "error" for r in resultados)
+    if deshaciendo:
+        texto = f"Se regresaron {hechos} archivos a su lugar"
+    elif simular:
+        texto = f"Simulación: se moverían {hechos} archivos (no se movió nada)"
+    else:
+        texto = f"Se movieron {hechos} archivos"
+    if omitidos:
+        texto += f" · {omitidos} omitidos"
+    if errores:
+        texto += f" · {errores} con problema"
+    etiqueta = Gtk.Label(label=texto, xalign=0, wrap=True)
+    etiqueta.add_css_class("archy-titulo")
+    caja.append(etiqueta)
     lista = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
     lista.add_css_class("boxed-list")
-    expandir = len(filas) <= 15
-    for grupo in list(materias) + [carpeta_dudas]:
-        del_grupo = [f for f in filas if f.materia == grupo]
-        if not del_grupo:
-            continue
-        fila = Adw.ExpanderRow(title=_texto(grupo))
-        fila.add_prefix(Gtk.Image.new_from_icon_name("folder-symbolic"))
-        clase = "archy-pill-revisar" if grupo == carpeta_dudas else "archy-pill-organizado"
-        fila.add_suffix(_pill(str(len(del_grupo)), clase))
-        for f in sorted(del_grupo, key=lambda f: -f.confianza):
-            fila.add_row(_fila_archivo(f))
-        fila.set_expanded(expandir)
+    detalle = Adw.ExpanderRow(title=_("Detalle"), subtitle=_("Qué pasó con cada archivo"))
+    for r in resultados:
+        destino = f"→ {r.destino} · " if r.destino else ""
+        detalle.add_row(_fila(r.origen or _("Operación"), f"{destino}{r.detalle}",
+                              ICONO_ESTADO.get(r.estado, ICONO_OTROS)))
+    detalle.set_expanded(errores > 0 or len(resultados) <= 5)
+    lista.append(detalle)
+    caja.append(lista)
+    return caja
+
+
+def _boton_deshacer(ext, id_operacion: int, movidos: int, contenedor: Gtk.Box) -> Gtk.Button:
+    """Botón que deshace una operación, con confirmación, y muestra el resultado en `contenedor`."""
+    boton = Gtk.Button(label=_("Deshacer"), halign=Gtk.Align.START)
+
+    def trabajar():
+        try:
+            from nucleo.ejecutor import deshacer
+            config = ext._config()
+            _op, resultados = deshacer(ext._bitacora(), ext._guardian(config), id_operacion)
+            GLib.idle_add(mostrar, resultados, None)
+        except Exception as error:
+            GLib.idle_add(mostrar, [], str(error))
+
+    def mostrar(resultados, error):
+        if error:
+            contenedor.append(_aviso(f"No se pudo deshacer: {error}"))
+            boton.set_sensitive(True)
+        else:
+            contenedor.append(_widget_resultados(resultados, False, deshaciendo=True))
+            _actualizar_panel()
+        return False
+
+    def al_aceptar():
+        boton.set_sensitive(False)
+        threading.Thread(target=trabajar, daemon=True).start()
+
+    boton.connect("clicked", lambda _b: _confirmar(
+        contenedor, _("¿Deshacer los cambios?"),
+        f"Archy regresará {movidos} archivos a donde estaban. Si alguno cambió o su lugar original "
+        "ya está ocupado, ese no se toca.", _("Deshacer"), al_aceptar))
+    return boton
+
+
+class _PlanUI:
+    """Tarjeta del plan: el estudiante aprueba, corrige la materia, decide el renombre y aplica."""
+
+    def __init__(self, plan, config, ocupadas, notas, ext):
+        self.plan, self.config, self.ocupadas, self.ext = plan, config, list(ocupadas), ext
+        self.opciones = list(config.nombres_materias) + [config.carpeta_dudas]
+        self.filas: list = []
+        self.controles: list = []
+        self.caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        if not plan.acciones:
+            for w in _widgets_mensaje(_("No hay archivos sin organizar en Trabajos.")):
+                self.caja.append(w)
+            return
+        resumen = Gtk.Label(label=f"{_plural(len(plan.acciones), 'archivo sin organizar', 'archivos sin organizar')}"
+                                  " · marca los que apruebas, corrige la materia si hace falta y aplica",
+                            xalign=0, wrap=True)
+        resumen.add_css_class("dim-label")
+        self.caja.append(resumen)
+        self.caja.append(_resumen_decisiones(plan.acciones))
+        for nota in notas:
+            self.caja.append(_aviso(nota))
+
+        lista = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        lista.add_css_class("boxed-list")
+        for grupo in self.opciones:
+            acciones = [a for a in plan.acciones if a.materia_propuesta == grupo]
+            if not acciones:
+                continue
+            fila = Adw.ExpanderRow(title=_texto(grupo))
+            fila.add_prefix(Gtk.Image.new_from_icon_name("folder-symbolic"))
+            clase = "archy-pill-revisar" if grupo == config.carpeta_dudas else "archy-pill-organizado"
+            fila.add_suffix(_pill(str(len(acciones)), clase))
+            for a in sorted(acciones, key=lambda a: -a.confianza):
+                fila.add_row(self._fila(a))
+            fila.set_expanded(len(plan.acciones) <= 15)
+            lista.append(fila)
+        self.caja.append(lista)
+
+        barra = Gtk.Box(spacing=8)
+        self.estado = Gtk.Label(xalign=0, wrap=True, hexpand=True)
+        self.estado.add_css_class("dim-label")
+        self.estado.add_css_class("caption")
+        self.boton = Gtk.Button(valign=Gtk.Align.CENTER)
+        self.boton.add_css_class("suggested-action")
+        self.boton.connect("clicked", self._al_aplicar)
+        barra.append(self.estado)
+        barra.append(self.boton)
+        self.caja.append(barra)
+        self.resultados = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.caja.append(self.resultados)
+        self._refrescar()
+
+    def _fila(self, a) -> Adw.ActionRow:
+        fila = Adw.ActionRow(title=_texto(a.nombre_original))
+        fila.set_title_lines(1)
+        fila.set_subtitle_lines(4)
+        fila.set_tooltip_text(a.origen)
+        aprobar = Gtk.CheckButton(active=a.aprobada, valign=Gtk.Align.CENTER,
+                                  tooltip_text=_("Aprobar este movimiento"))
+        aprobar.connect("toggled", lambda b, a=a: self._cambiar(a, "aprobada", b.get_active()))
+        fila.add_prefix(aprobar)
+        if a.puede_renombrar:
+            renombrar = Gtk.ToggleButton(icon_name="document-edit-symbolic", active=a.renombrar,
+                                         valign=Gtk.Align.CENTER,
+                                         tooltip_text=f"Renombrar a {a.nombre_propuesto}")
+            renombrar.add_css_class("flat")
+            renombrar.connect("toggled", lambda b, a=a: self._cambiar(a, "renombrar", b.get_active()))
+            fila.add_suffix(renombrar)
+            self.controles.append(renombrar)
+        fila.add_suffix(_pill(f"{a.confianza:.2f}", CLASE_DECISION[a.decision]))
+        materia = Gtk.DropDown.new_from_strings(self.opciones)
+        materia.set_selected(self.opciones.index(a.materia) if a.materia in self.opciones else len(self.opciones) - 1)
+        materia.set_valign(Gtk.Align.CENTER)
+        materia.set_tooltip_text(_("Cambiar la materia"))
+        materia.connect("notify::selected",
+                        lambda d, _p, a=a: self._cambiar(a, "materia", self.opciones[d.get_selected()]))
+        fila.add_suffix(materia)
+        self.controles += [aprobar, materia]
+        self.filas.append((a, fila))
+        return fila
+
+    def _cambiar(self, accion, campo, valor):
+        setattr(accion, campo, valor)
+        self._refrescar()
+
+    def _refrescar(self):
+        from nucleo.planificador import asignar_destinos
+        asignar_destinos(self.plan, self.config, self.ocupadas)
+        for a, fila in self.filas:
+            partes = [f"→ {a.destino}"]
+            if a.materia != a.materia_propuesta:
+                partes.append(f"Corregido por ti (Archy proponía {a.materia_propuesta})")
+            else:
+                partes.append(f"{a.motivo}")
+            if a.nota:
+                partes.append(a.nota)
+            fila.set_subtitle(_texto("\n".join(partes)))
+        n = len(self.plan.aprobadas)
+        simular = self.ext._simular()
+        if n:
+            self.boton.set_label(f"Simular {n} cambios" if simular else f"Mover {n} archivos")
+        else:
+            self.boton.set_label(_("Nada aprobado"))
+        self.boton.set_sensitive(n > 0)
+        self.estado.set_label(
+            _("Modo simulación: no se moverá nada. Para mover de verdad, activa «Modo real» en "
+              "Configuración → Extensiones → Archy.") if simular else
+            _("Modo real: los archivos aprobados se moverán dentro de Trabajos. Nada se borra y se puede deshacer."))
+
+    def _bloquear(self, bloquear: bool):
+        for control in self.controles:
+            control.set_sensitive(not bloquear)
+        self.boton.set_sensitive(not bloquear and bool(self.plan.aprobadas))
+
+    def _al_aplicar(self, _boton):
+        n = len(self.plan.aprobadas)
+        simular = self.ext._simular()
+        if simular:
+            titulo, boton = f"¿Simular {n} cambios?", _("Simular")
+            cuerpo = f"Archy mostrará qué pasaría con {n} archivos, sin moverlos."
+        else:
+            titulo, boton = f"¿Mover {n} archivos?", _("Mover")
+            cuerpo = (f"Archy moverá {n} archivos aprobados dentro de Trabajos. No se borra ni se "
+                      "sobrescribe nada, y puedes deshacerlo.")
+        _confirmar(self.caja, titulo, cuerpo, boton, lambda: self._aplicar(simular))
+
+    def _aplicar(self, simular: bool):
+        self._bloquear(True)
+        self.estado.set_label(_("Simulando…") if simular else _("Moviendo archivos…"))
+
+        def trabajar():
+            try:
+                from nucleo.ejecutor import aplicar
+                config = self.ext._config()
+                op, resultados = aplicar(self.plan.acciones, self.ext._guardian(config), self.ext._bitacora(), simular)
+                GLib.idle_add(self._mostrar, op, resultados, simular, None)
+            except Exception as error:
+                GLib.idle_add(self._mostrar, None, [], simular, str(error))
+
+        threading.Thread(target=trabajar, daemon=True).start()
+
+    def _mostrar(self, op, resultados, simular, error):
+        if error:
+            self.resultados.append(_aviso(f"No se pudo aplicar el plan: {error}"))
+            self._bloquear(False)
+            return False
+        self.resultados.append(_widget_resultados(resultados, simular))
+        if simular:
+            self._bloquear(False)
+            self._refrescar()
+        else:
+            self.estado.set_label(_("Plan aplicado. Para otro plan, pide de nuevo que organice la carpeta."))
+            self.boton.set_sensitive(False)
+            movidos = sum(r.estado == "movido" for r in resultados)
+            if op is not None and movidos:
+                self.resultados.append(_boton_deshacer(self.ext, op, movidos, self.resultados))
+            _actualizar_panel()
+        return False
+
+
+def _widgets_plan(plan, config, ocupadas, notas, ext) -> list:
+    return [_PlanUI(plan, config, ocupadas, notas, ext).caja]
+
+
+def _widgets_deshacer(operacion, movimientos, ext) -> list:
+    if operacion is None:
+        return _widgets_mensaje(_("No hay cambios que deshacer."))
+    caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    etiqueta = Gtk.Label(label=f"Último cambio: {operacion.fecha.replace('T', ' ')} · "
+                               f"{_plural(operacion.movidos, 'archivo movido', 'archivos movidos')}",
+                         xalign=0, wrap=True)
+    caja.append(etiqueta)
+    lista = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+    lista.add_css_class("boxed-list")
+    detalle = Adw.ExpanderRow(title=_("Archivos que regresarían"), subtitle=_("De su lugar actual al original"))
+    for m in movimientos:
+        if m.estado == "movido":
+            detalle.add_row(_fila(m.destino or "", f"← {m.origen}", "edit-undo-symbolic"))
+    detalle.set_expanded(operacion.movidos <= 8)
+    lista.append(detalle)
+    caja.append(lista)
+    caja.append(_boton_deshacer(ext, operacion.id, operacion.movidos, caja))
+    return [caja]
+
+
+def _widgets_historial(operaciones, movimientos, bloqueos) -> list:
+    if not operaciones and not bloqueos:
+        return _widgets_mensaje(_("Todavía no hay nada en la bitácora."))
+    lista = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+    lista.add_css_class("boxed-list")
+    for o in operaciones:
+        if o.tipo == "deshacer":
+            titulo = f"#{o.id} · Deshacer #{o.deshace}"
+            detalle = f"{o.movidos} regresados"
+        else:
+            titulo = f"#{o.id} · {'Simulación' if o.simulacion else 'Aplicar plan'}"
+            detalle = f"{o.total} archivos" if o.simulacion else f"{o.movidos} de {o.total} movidos"
+        if o.deshecha_por:
+            detalle += f" · deshecho en #{o.deshecha_por}"
+        fila = Adw.ExpanderRow(title=_texto(titulo), subtitle=_texto(f"{o.fecha.replace('T', ' ')} · {detalle}"))
+        fila.add_prefix(Gtk.Image.new_from_icon_name(
+            "edit-undo-symbolic" if o.tipo == "deshacer" else
+            "view-reveal-symbolic" if o.simulacion else "folder-symbolic"))
+        for m in movimientos.get(o.id, [])[:60]:
+            destino = f"→ {m.destino} · " if m.destino else ""
+            fila.add_row(_fila(m.origen, f"{destino}{m.estado}" + (f" ({m.detalle})" if m.estado in ("omitido", "error") else ""),
+                               ICONO_ESTADO.get(m.estado, ICONO_OTROS)))
         lista.append(fila)
-    widgets.append(lista)
-    pie = Gtk.Label(label=_("Confianza ≥ 0.70: se propone mover · 0.45–0.70: con advertencia · "
-                            "< 0.45: _Por revisar. Abre cada materia para ver el motivo."),
-                    xalign=0, wrap=True)
-    pie.add_css_class("dim-label")
-    pie.add_css_class("caption")
-    widgets.append(pie)
-    return widgets
+    if bloqueos:
+        fila = Adw.ExpanderRow(title=_texto(f"Bloqueos del guardián ({len(bloqueos)})"),
+                               subtitle=_("Rutas que Archy se negó a tocar"))
+        fila.add_prefix(Gtk.Image.new_from_icon_name("security-high-symbolic"))
+        for b in bloqueos:
+            fila.add_row(_fila(b.ruta, f"{b.fecha.replace('T', ' ')} · {b.motivo}", "action-unavailable-symbolic"))
+        lista.append(fila)
+    nota = Gtk.Label(label=_("La bitácora guarda rutas y metadatos, nunca el contenido de los archivos."),
+                     xalign=0, wrap=True)
+    nota.add_css_class("dim-label")
+    nota.add_css_class("caption")
+    return [lista, nota]
 
 
 def _widgets_archivo(f, extraccion, notas) -> list:
@@ -673,12 +939,15 @@ def _widgets_medicion(m, etapas, notas, meta=0.85) -> list:
 # Herramientas del chat: lógica
 # ---------------------------------------------------------------------------
 
-PROMPT_ARCHY = """Eres Archy, un agente automatizado (no una persona) que ayuda a un estudiante a organizar su carpeta Trabajos por materia (Seguridad Informática, Minería de Texto, Fundamentos de IA) y tipo de archivo.
-- Si pide organizar, clasificar o revisar la carpeta, llama a clasificar_carpeta.
-- Si pregunta por un archivo concreto (qué es, de qué materia, por qué), llama a ver_archivo con su nombre.
-- Las herramientas ya le muestran al estudiante una tabla con todo el detalle: no la repitas; resume en 2 o 3 frases con los números del resultado.
+PROMPT_ARCHY = """Eres Archy, un agente automatizado (no una persona) que ayuda a un estudiante a organizar su carpeta Trabajos por materia (Seguridad Informática, Minería de Texto, Fundamentos de IA) y tipo de archivo. Tú NO puedes ver los archivos: solo las herramientas de Archy pueden. Nunca pidas al estudiante que pegue el contenido ni que te dé la ubicación.
+- "organiza", "clasifica", "escanea" o "revisa" la carpeta -> llama a proponer_plan.
+- Cualquier pregunta sobre un archivo ("¿qué es Doc1.docx?", "qué contiene escaneo_red.csv", "¿por qué vdksahdas.py va a Minería?") o un mensaje que sea solo un nombre de archivo ("escaner.py") -> llama a ver_archivo con ese nombre tal como lo escribió. Hazlo SIEMPRE, aunque ya hayas hablado de ese archivo antes. Si pregunta por varios, llama a ver_archivo una vez por cada uno.
+- "deshaz", "deshacer", "regresa los archivos" -> llama a deshacer.
+- "¿qué hiciste?", "historial", "bitácora" -> llama a historial.
+- "mide el clasificador" -> llama a medir_clasificador (si existe).
+- Tú no mueves ni borras archivos. El estudiante aprueba, corrige y aplica el plan con los botones de la tarjeta; deshacer también es un botón.
+- Después de una herramienta, el estudiante ya ve la tarjeta completa. Contesta en 2 o 3 frases con los números principales; no copies listas.
 - La clasificación la hace la herramienta, no tú: no cambies sus materias ni inventes archivos.
-- Por ahora solo propones (modo simulación): no puedes mover, renombrar ni borrar archivos.
 Responde en español, breve y claro."""
 
 ESQUEMA_VACIO = {"type": "object", "properties": {}, "required": []}
@@ -717,26 +986,68 @@ class ArchyExtension(NewelleExtension):
     # -- Herramientas -----------------------------------------------------------
 
     def get_tools(self) -> list:
+        def herramienta(nombre, descripcion, funcion, esquema, titulo, icono):
+            return Tool(nombre, descripcion, funcion, schema=esquema, title=titulo,
+                        restore_func=self._restaurar, tools_group="Archy", icon_name=icono)
+
         herramientas = [
-            Tool("clasificar_carpeta",
-                 "Clasifica los archivos sin organizar de la carpeta Trabajos: materia, tipo, confianza, "
-                 "decisión, motivo y nombre propuesto. Solo lee; muestra la tabla al estudiante.",
-                 self._clasificar_carpeta, schema=ESQUEMA_VACIO, title=_("Clasificar Trabajos"),
-                 restore_func=self._restaurar, tools_group="Archy", icon_name="folder-symbolic"),
-            Tool("ver_archivo",
-                 "Explica un archivo de Trabajos: qué leyó Archy de él, a qué materia pertenece y por qué, "
-                 "y qué nombre propone. Solo lee.",
-                 self._ver_archivo, schema=ESQUEMA_VER, title=_("Ver archivo"),
-                 restore_func=self._restaurar, tools_group="Archy", icon_name="x-office-document-symbolic"),
+            herramienta("proponer_plan",
+                        "Archy: escanea y clasifica los archivos sin organizar de la carpeta Trabajos y muestra "
+                        "un plan (materia, tipo, confianza, motivo y nombre propuesto) que el estudiante aprueba "
+                        "y aplica con botones. Úsala cuando pidan organizar, clasificar, escanear o revisar la carpeta.",
+                        self._proponer_plan, ESQUEMA_VACIO, _("Plan para Trabajos"), "folder-symbolic"),
+            herramienta("ver_archivo",
+                        "Archy: abre y explica UN archivo de la carpeta Trabajos (qué contiene, a qué materia "
+                        "pertenece y por qué, qué nombre propone). Úsala siempre que pregunten '¿qué es X?', "
+                        "'qué contiene X' o '¿por qué X va a tal materia?', o escriban solo un nombre de archivo. "
+                        "Acepta el nombre incompleto o sin espacios. Solo lee.",
+                        self._ver_archivo, ESQUEMA_VER, _("Ver archivo"), "x-office-document-symbolic"),
+            herramienta("deshacer",
+                        "Archy: muestra el último cambio que hizo en Trabajos y un botón para regresar los archivos "
+                        "a su lugar. Úsala cuando pidan deshacer o regresar los archivos.",
+                        self._deshacer, ESQUEMA_VACIO, _("Deshacer"), "edit-undo-symbolic"),
+            herramienta("historial",
+                        "Archy: muestra la bitácora: qué planes se aplicaron o simularon, qué se deshizo y qué "
+                        "bloqueó el guardián. Úsala cuando pregunten qué hizo Archy.",
+                        self._historial, ESQUEMA_VACIO, _("Historial"), "document-open-recent-symbolic"),
         ]
         if self._modo_desarrollo():
-            herramientas.append(Tool(
+            herramientas.append(herramienta(
                 "medir_clasificador",
                 "Solo para el equipo de desarrollo: mide la exactitud del clasificador con el dataset "
                 "etiquetado copiado en Trabajos.",
-                self._medir_clasificador, schema=ESQUEMA_MEDIR, title=_("Medir clasificador"),
-                restore_func=self._restaurar, tools_group="Archy", icon_name="view-list-symbolic"))
+                self._medir_clasificador, ESQUEMA_MEDIR, _("Medir clasificador"), "view-list-symbolic"))
         return herramientas
+
+    def preprocess_history(self, history: list, prompts: list) -> tuple[list, list]:
+        """Agrega una pista de qué herramienta usar para el último mensaje del estudiante.
+
+        La pista va en el campo interno "RetrievedContext" del mensaje: la app
+        la manda al modelo dentro de <context> antes del mensaje, pero no la
+        muestra y no cambia el texto que escribió el estudiante. (En esta ruta
+        la app pasa el chat real, no una copia: si se cambia "Message", la app
+        lo guarda y lo vuelve a dibujar, como pasó el 20 nov.)
+        Ver nucleo/pistas.py: con la pista, Qwen 2.5 3B llamó a la herramienta
+        correcta en 14 de 15 turnos; sin ella, en 1 de 5.
+        """
+        try:
+            if not history:
+                return history, prompts
+            ultimo = history[-1]
+            if ultimo.get("User") != "User" or ultimo.get("ToolContext"):
+                return history, prompts
+            from nucleo.pistas import ETIQUETA, pista_para
+            contexto = list(ultimo.get("RetrievedContext") or [])
+            if any(ETIQUETA in str(c) for c in contexto):
+                return history, prompts
+            extensiones = [e for lista in self._config().tipos.values() for e in lista]
+            herramientas = [t.name for t in self.get_tools()]
+            pista = pista_para(str(ultimo.get("Message") or ""), extensiones, herramientas)
+            if pista:
+                ultimo["RetrievedContext"] = contexto + [pista]
+        except Exception as error:  # nunca romper el chat por una pista
+            print("Archy: no se pudo agregar la pista:", error)
+        return history, prompts
 
     def get_additional_prompts(self) -> list:
         return [{
@@ -756,6 +1067,28 @@ class ArchyExtension(NewelleExtension):
             return cargar_config(CONFIG).modo_desarrollo
         except Exception:
             return False
+
+    def _config(self):
+        from nucleo.configuracion import cargar_config
+        return cargar_config(CONFIG)
+
+    def _guardian(self, config=None):
+        from nucleo.guardian import Guardian
+        config = config or self._config()
+        return Guardian(config.carpeta_raiz, config.lista_negra_extra)
+
+    def _bitacora(self):
+        from nucleo.bitacora import Bitacora
+        return Bitacora(BITACORA)
+
+    def _simular(self) -> bool:
+        """Simulación salvo que se active "Modo real" (o config.yaml diga modo: real)."""
+        try:
+            if self._config().modo == "real":
+                return False
+        except Exception:
+            pass
+        return not self.get_setting("modo_real", False, False)
 
     def _endpoint(self) -> str:
         """El mismo Ollama que usa la app (lo cambia usar_ollama.sh)."""
@@ -811,12 +1144,14 @@ class ArchyExtension(NewelleExtension):
 
         def correr():
             try:
-                texto, construir, args = trabajo(tarjeta)
+                texto, construir, args, *guardar = trabajo(tarjeta)
             except Exception as error:  # create_io_tool/Tool no atrapan errores
                 texto = f"Archy no pudo completar la herramienta: {error}"
-                construir, args = _widgets_mensaje, (texto, "dialog-error-symbolic")
+                construir, args, guardar = _widgets_mensaje, (texto, "dialog-error-symbolic"), []
             if tool_uuid:
-                _RESULTADOS[tool_uuid] = (titulo, icono, construir, args)
+                # Las tarjetas con botones se restauran sin botones (un plan viejo no se aplica).
+                construir_r, args_r = guardar[0] if guardar else (construir, args)
+                _RESULTADOS[tool_uuid] = (titulo, icono, construir_r, args_r)
             if tarjeta is not None:
                 tarjeta.mostrar(construir, *args)
             resultado.set_output(texto)
@@ -840,14 +1175,14 @@ class ArchyExtension(NewelleExtension):
         resultado.set_output(None)
         return resultado
 
-    def _clasificar_carpeta(self, tool_uuid: str = None, **_ignorados) -> ToolResult:
+    def _proponer_plan(self, tool_uuid: str = None, **_ignorados) -> ToolResult:
         def trabajo(tarjeta):
             from nucleo.escaner import escanear
-            from nucleo.reporte import AVISO_MODELO, clasificar_archivos, resumen_clasificacion
+            from nucleo.planificador import crear_plan, resumen_plan
+            from nucleo.reporte import AVISO_MODELO, clasificar_archivos
             config, guardian, clasificador, respaldo, etapas, notas = self._preparar()
             escaneo = escanear(guardian, config)
             sueltos = [a for a in escaneo.archivos if a.ubicacion == "suelto"]
-            otros = len(escaneo.archivos) - len(sueltos)
 
             def progreso(i, n):
                 if tarjeta is not None:
@@ -856,11 +1191,49 @@ class ArchyExtension(NewelleExtension):
             filas = clasificar_archivos(guardian, config, sueltos, clasificador, respaldo, progreso)
             if any(f.aviso and AVISO_MODELO in f.aviso for f in filas):
                 notas.append("Ollama dejó de responder durante la clasificación: el resto se hizo solo con reglas.")
-            nota = f"Etapas usadas: {etapas}." + (" " + " ".join(notas) if notas else "")
-            texto = resumen_clasificacion(filas, config, otros, nota)
-            return texto, _widgets_clasificacion, (filas, config.nombres_materias, config.carpeta_dudas, notas, otros)
+            plan = crear_plan(filas, escaneo.archivos, config)
+            texto = resumen_plan(plan, config) + f"\nEtapas usadas: {etapas}." + (" " + " ".join(notas) if notas else "")
+            if self._simular():
+                texto += "\nModo simulación activo: al aplicar no se moverá nada."
+            ocupadas = [a.ruta_relativa for a in escaneo.archivos]
+            guardado = (_widgets_mensaje, (f"Plan de {len(plan.acciones)} archivos. Este plan ya no está activo: "
+                                           "pide «organiza mi carpeta» para hacer uno nuevo.",))
+            return texto, _widgets_plan, (plan, config, ocupadas, notas, self), guardado
 
-        return self._lanzar(_("Clasificación de Trabajos"), "folder-symbolic", trabajo, tool_uuid)
+        return self._lanzar(_("Plan para Trabajos"), "folder-symbolic", trabajo, tool_uuid)
+
+    def _deshacer(self, tool_uuid: str = None, **_ignorados) -> ToolResult:
+        def trabajo(_tarjeta):
+            config = self._config()
+            bitacora = self._bitacora()
+            raiz = str(self._guardian(config).raiz)
+            operacion = bitacora.ultima_deshacible(raiz)
+            guardado = (_widgets_mensaje, (_("Para deshacer, pide de nuevo «deshacer»."),))
+            if operacion is None:
+                return "No hay cambios que deshacer.", _widgets_deshacer, (None, [], self), guardado
+            texto = (f"El último cambio ({operacion.fecha.replace('T', ' ')}) movió {operacion.movidos} archivos. "
+                     "El estudiante puede regresarlos con el botón Deshacer de la tarjeta.")
+            return texto, _widgets_deshacer, (operacion, bitacora.movimientos(operacion.id), self), guardado
+
+        return self._lanzar(_("Deshacer"), "edit-undo-symbolic", trabajo, tool_uuid)
+
+    def _historial(self, tool_uuid: str = None, **_ignorados) -> ToolResult:
+        def trabajo(_tarjeta):
+            bitacora = self._bitacora()
+            operaciones = bitacora.operaciones(limite=10)
+            movimientos = {o.id: bitacora.movimientos(o.id) for o in operaciones}
+            bloqueos = bitacora.bloqueos(limite=10)
+            if not operaciones and not bloqueos:
+                texto = "La bitácora está vacía: Archy todavía no ha aplicado ni simulado ningún plan."
+            else:
+                texto = "Últimas operaciones: " + "; ".join(
+                    f"#{o.id} {o.fecha.replace('T', ' ')} "
+                    + ("deshacer" if o.tipo == "deshacer" else "simulación" if o.simulacion else "aplicar")
+                    + f" ({o.movidos} movidos)" + (" [deshecha]" if o.deshecha_por else "")
+                    for o in operaciones[:5]) + f". Bloqueos del guardián: {len(bloqueos)}."
+            return texto, _widgets_historial, (operaciones, movimientos, bloqueos)
+
+        return self._lanzar(_("Historial"), "document-open-recent-symbolic", trabajo, tool_uuid)
 
     def _ver_archivo(self, nombre: str = "", tool_uuid: str = None, **_ignorados) -> ToolResult:
         def trabajo(tarjeta):
@@ -882,8 +1255,7 @@ class ArchyExtension(NewelleExtension):
             texto = (f"{fila.ruta_relativa}: {fila.materia} (confianza {fila.confianza:.2f}, "
                      f"{TEXTO_DECISION[fila.decision]}). Motivo: {fila.motivo}. "
                      + (f"Nombre propuesto: {fila.nombre_propuesto}. " if fila.renombrar else "Se conserva el nombre. ")
-                     + f"Leído como {extraccion.metodo}. Inicio del contenido: {extraccion.texto[:300]!r}. "
-                     "El detalle ya se muestra al estudiante.")
+                     + f"Leído como {extraccion.metodo}. Inicio del contenido: {extraccion.texto[:300]!r}.")
             return texto, _widgets_archivo, (fila, extraccion, notas)
 
         return self._lanzar(_("Archivo"), "x-office-document-symbolic", trabajo, tool_uuid)
@@ -931,6 +1303,12 @@ class ArchyExtension(NewelleExtension):
                 "tema", _("Colores de Archy"),
                 _("Aplica la paleta de Archy (azul marino, petróleo y turquesa) a toda la app"),
                 True,
+            ),
+            ExtraSettings.ToggleSetting(
+                "modo_real", _("Modo real (mover archivos)"),
+                _("Apagado: los planes solo se simulan. Encendido: al aplicar un plan, Archy mueve los "
+                  "archivos aprobados dentro de Trabajos (nunca borra y se puede deshacer)."),
+                False,
             ),
         ]
 
